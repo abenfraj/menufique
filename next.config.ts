@@ -36,10 +36,8 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Vercel-specific: allow Puppeteer in Serverless Functions (increase timeout)
-  experimental: {
-    serverComponentsExternalPackages: ["puppeteer-core", "puppeteer"],
-  },
+  // Vercel-specific: externalize Puppeteer from bundling
+  serverExternalPackages: ["puppeteer-core", "puppeteer"],
 
   images: {
     remotePatterns: [
