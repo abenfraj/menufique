@@ -3,15 +3,15 @@ import { notFound } from "next/navigation";
 import { getTemplate } from "@/templates";
 import { TemplateData } from "@/templates/types";
 import { formatPrice } from "@/lib/utils";
+import { UtensilsCrossed } from "lucide-react";
+import Link from "next/link";
 import type { Metadata } from "next";
 
 interface PublicMenuPageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({
-  params,
-}: PublicMenuPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PublicMenuPageProps): Promise<Metadata> {
   const { slug } = await params;
   const menu = await prisma.menu.findUnique({
     where: { slug },
@@ -107,16 +107,36 @@ export default async function PublicMenuPage({ params }: PublicMenuPageProps) {
   const isAiCustom = menu.templateId === "ai-custom";
 
   return (
-    <div className={`min-h-screen ${isBistrot ? "bg-[#0E0A07]" : "bg-gray-100"}`}>
-      <div className={`mx-auto p-4 sm:py-8 ${isAiCustom ? "max-w-2xl" : "max-w-lg"}`}>
-        <div
-          className={`overflow-hidden rounded-2xl shadow-lg ${
-            isAiCustom ? "" : isBistrot ? "" : "bg-white p-6 sm:p-8"
-          }`}
-        >
-          <Template data={templateData} />
+    <div
+      className={`flex min-h-screen flex-col ${
+        isBistrot ? "bg-[#0E0A07]" : "bg-gray-100"
+      }`}
+    >
+      {/* Menu */}
+      <main className="flex-1">
+        <div className={`mx-auto p-4 sm:py-8 ${isAiCustom ? "max-w-2xl" : "max-w-lg"}`}>
+          <div
+            className={`overflow-hidden rounded-2xl shadow-lg ${
+              isAiCustom ? "" : isBistrot ? "" : "bg-white p-6 sm:p-8"
+            }`}
+          >
+            <Template data={templateData} />
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* Menufique branding footer */}
+      <footer className="py-6 text-center">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-medium text-white/60 backdrop-blur-sm transition-colors hover:bg-white/20 hover:text-white/80"
+        >
+          <div className="flex h-4 w-4 items-center justify-center rounded bg-primary">
+            <UtensilsCrossed size={9} className="text-white" />
+          </div>
+          Créé avec Menufique
+        </Link>
+      </footer>
     </div>
   );
 }

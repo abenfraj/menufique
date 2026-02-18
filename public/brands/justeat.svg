@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 32">
+  <!-- Just Eat wordmark (simplified) -->
+  <!-- Flame icon -->
+  <path d="M6 28 C6 28 2 22 5 17 C5 17 6 20 8 19 C8 19 5 13 10 8 C10 8 9 15 13 14 C13 14 11 18 14 21 C16 23 14 28 14 28 Z" fill="#F36F21"/>
+  <!-- Text -->
+  <text x="18" y="23" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#F36F21">Just Eat</text>
+</svg>

@@ -34,9 +34,29 @@ export async function GET(
       return new NextResponse("Menu introuvable", { status: 404 });
     }
 
-    // If we have AI-generated HTML, serve it directly
+    // If we have AI-generated HTML, inject preview normalizer + auto-scaler and serve it
     if (menu.templateId === "ai-custom" && menu.aiDesignHtml) {
-      return new NextResponse(menu.aiDesignHtml, {
+      // CSS: centers pages, adds shadow, locks A4 dimensions (overrides any min-height)
+      const previewCss = `<style id="preview-normalizer">
+html,body{background:#e8eaed!important;margin:0!important;padding:20px 0!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:20px!important;min-height:100vh!important;}
+.menu-page{width:210mm!important;height:297mm!important;min-height:unset!important;max-height:297mm!important;overflow:hidden!important;box-sizing:border-box!important;box-shadow:0 4px 24px rgba(0,0,0,0.18)!important;flex-shrink:0!important;margin:0!important;position:relative!important;}
+</style>`;
+
+      // JS auto-scaler: fits overflowing content via transform:scale — waits for fonts before measuring
+      const scalerScript = `<script data-mf-scaler="1">
+(function(){var DONE='data-mf-scaled';function fit(){document.querySelectorAll('.menu-page').forEach(function(page){if(page.hasAttribute(DONE))return;page.setAttribute(DONE,'1');var pH=page.clientHeight,cH=page.scrollHeight;if(!pH||cH<=pH+1)return;var scale=pH/cH;var wrap=document.createElement('div');wrap.style.cssText='transform-origin:top left;width:'+(100/scale).toFixed(3)+'%;display:block;';while(page.firstChild)wrap.appendChild(page.firstChild);page.appendChild(wrap);wrap.style.transform='scale('+scale.toFixed(6)+')';});}function run(){if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}else{fit();}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}else{run();}})();
+<\/script>`;
+
+      let html = menu.aiDesignHtml;
+      // Only inject what's not already present (handles both old and new generated HTML)
+      if (!html.includes('id="preview-normalizer"')) {
+        html = html.replace("</head>", `${previewCss}</head>`);
+      }
+      if (!html.includes('data-mf-scaler')) {
+        html = html.replace("</body>", `${scalerScript}</body>`);
+      }
+
+      return new NextResponse(html, {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
@@ -103,8 +123,9 @@ function buildSimplePreviewHtml(menu: {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; color: #1A1A2E; background: #FFF8F2; }
-    .menu-page { width: 210mm; min-height: 297mm; padding: 15mm; margin: 0 auto; }
+    html, body { background: #e8eaed; min-height: 100vh; }
+    body { font-family: 'Inter', sans-serif; color: #1A1A2E; display: flex; flex-direction: column; align-items: center; padding: 20px 0; gap: 20px; }
+    .menu-page { width: 210mm; min-height: 297mm; padding: 15mm; box-shadow: 0 4px 24px rgba(0,0,0,0.18); background: #FFF8F2; }
   </style>
 </head>
 <body>

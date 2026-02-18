@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .menu-page { width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box; overflow: hidden; background: #080808; position: relative; color: #E8D5A3; }
+  .frame { position: absolute; inset: 5mm; border: 1px solid #C9A84C; pointer-events: none; }
+  .content { position: relative; z-index: 1; padding: 5mm; }
+  .restaurant-name { font-family: 'Cinzel', serif; font-size: 22pt; color: #C9A84C; letter-spacing: 8px; text-transform: uppercase; text-align: center; margin-bottom: 3mm; }
+  .subtitle { font-family: 'Cormorant Garamond', serif; font-size: 9pt; font-style: italic; color: rgba(201,168,76,0.75); text-align: center; margin-bottom: 3mm; }
+  .divider { display: flex; align-items: center; gap: 3mm; margin: 2mm 0; }
+  .divider-line { flex: 1; height: 0.5px; background: linear-gradient(to right, transparent, #C9A84C, transparent); }
+  .divider-ornament { color: #C9A84C; font-size: 9pt; }
+  .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; margin-top: 4mm; }
+  .category-title { font-family: 'Cinzel', serif; font-size: 9pt; color: #C9A84C; letter-spacing: 3px; text-transform: uppercase; text-align: center; margin-bottom: 2mm; }
+  .dish-row { display: flex; align-items: flex-end; gap: 3px; margin-bottom: 2mm; }
+  .dish-name { font-family: 'Cormorant Garamond', serif; font-size: 10pt; color: #E8D5A3; flex-shrink: 0; max-width: 68%; }
+  .dish-dots { flex: 1; border-bottom: 1px dotted rgba(201,168,76,0.35); margin-bottom: 3px; }
+  .dish-price { font-family: 'Cinzel', serif; font-size: 9pt; color: #C9A84C; white-space: nowrap; }
+  .dish-desc { font-family: 'Cormorant Garamond', serif; font-size: 7.5pt; font-style: italic; color: rgba(232,213,163,0.5); display: block; margin-bottom: 2mm; }
+  .footer { position: absolute; bottom: 8mm; left: 10mm; right: 10mm; text-align: center; border-top: 0.5px solid rgba(201,168,76,0.3); padding-top: 2.5mm; }
+  .footer p { font-family: 'Cinzel', serif; font-size: 5.5pt; color: rgba(201,168,76,0.6); letter-spacing: 3px; text-transform: uppercase; margin: 0; }
+</style>
+<style id="mf-a4-lock">
+.menu-page{width:210mm!important;height:297mm!important;min-height:unset!important;max-height:297mm!important;overflow:hidden!important;box-sizing:border-box!important;position:relative!important;flex-shrink:0!important;}
+</style></head>
+<body>
+<div class="menu-page">
+  <div class="frame"></div>
+  <div class="content">
+    <h1 class="restaurant-name">Le Prestige</h1>
+    <p class="subtitle">Haute Gastronomie Française</p>
+    <div class="divider"><div class="divider-line"></div><span class="divider-ornament">◆</span><div class="divider-line"></div></div>
+    <p style="font-family:'Cormorant Garamond',serif;font-size:7.5pt;color:rgba(201,168,76,0.6);text-align:center;letter-spacing:2px;margin-top:2mm;">8 Place Vendôme · Paris 1er · 01 40 20 00 00</p>
+    <div class="columns">
+      <div>
+        <p class="category-title">Entrées</p>
+        <div class="dish-row"><span class="dish-name">Caviar Osciètre</span><span class="dish-dots"></span><span class="dish-price">85 €</span></div>
+        <span class="dish-desc">Blinis tièdes, crème fraîche de Normandie</span>
+        <div class="dish-row"><span class="dish-name">Foie gras en terrine</span><span class="dish-dots"></span><span class="dish-price">38 €</span></div>
+        <span class="dish-desc">Gelée au Sauternes, brioche toastée</span>
+        <div class="dish-row"><span class="dish-name">Langoustines rôties</span><span class="dish-dots"></span><span class="dish-price">44 €</span></div>
+        <span class="dish-desc">Beurre corail, légumes croquants</span>
+        <p class="category-title" style="margin-top:3mm;">Desserts</p>
+        <div class="dish-row"><span class="dish-name">Soufflé au Grand Marnier</span><span class="dish-dots"></span><span class="dish-price">22 €</span></div>
+        <span class="dish-desc">Crème anglaise vanillée</span>
+        <div class="dish-row"><span class="dish-name">Mille-feuille vanille</span><span class="dish-dots"></span><span class="dish-price">18 €</span></div>
+        <span class="dish-desc">Crème légère, caramel lacté</span>
+        <div class="dish-row"><span class="dish-name">Tarte au citron</span><span class="dish-dots"></span><span class="dish-price">16 €</span></div>
+        <span class="dish-desc">Meringue italienne, sorbet citron</span>
+      </div>
+      <div>
+        <p class="category-title">Plats Principaux</p>
+        <div class="dish-row"><span class="dish-name">Homard bleu breton</span><span class="dish-dots"></span><span class="dish-price">78 €</span></div>
+        <span class="dish-desc">Beurre aux herbes, tagliatelles fraîches</span>
+        <div class="dish-row"><span class="dish-name">Filet de sole meunière</span><span class="dish-dots"></span><span class="dish-price">54 €</span></div>
+        <span class="dish-desc">Câpres, citron confit, persil</span>
+        <div class="dish-row"><span class="dish-name">Pigeon de Bresse rôti</span><span class="dish-dots"></span><span class="dish-price">62 €</span></div>
+        <span class="dish-desc">Jus de truffes, légumes du potager</span>
+        <div class="dish-row"><span class="dish-name">Côte de bœuf Wagyu</span><span class="dish-dots"></span><span class="dish-price">95 €</span></div>
+        <span class="dish-desc">Sauce Périgueux, pommes dauphines</span>
+        <p class="category-title" style="margin-top:3mm;">Fromages</p>
+        <div class="dish-row"><span class="dish-name">Chariot de fromages</span><span class="dish-dots"></span><span class="dish-price">24 €</span></div>
+        <span class="dish-desc">Sélection affinée, accompagnements</span>
+      </div>
+    </div>
+    <p style="font-family:'Cormorant Garamond',serif;font-size:6pt;color:rgba(201,168,76,0.4);text-align:center;margin-top:3mm;">Allergènes disponibles sur demande · Service 12h30–14h30 · 19h30–22h30</p>
+  </div>
+  <footer class="footer">
+    <p>Le Prestige · 8 Place Vendôme, Paris 1er · contact@leprestige.fr</p>
+  </footer>
+</div>
+<script data-mf-scaler="1">
+(function(){
+  var DONE='data-mf-scaled';
+  function fit(){
+    document.querySelectorAll('.menu-page').forEach(function(page){
+      if(page.hasAttribute(DONE))return;
+      page.setAttribute(DONE,'1');
+      var pH=page.clientHeight,cH=page.scrollHeight;
+      if(!pH||cH<=pH+1)return;
+      var scale=pH/cH;
+      var wrap=document.createElement('div');
+      wrap.style.cssText='transform-origin:top left;width:'+(100/scale).toFixed(3)+'%;display:block;';
+      while(page.firstChild)wrap.appendChild(page.firstChild);
+      page.appendChild(wrap);
+      wrap.style.transform='scale('+scale.toFixed(6)+')';
+    });
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',fit);}
+  else{fit();}
+})();
+</script></body>
+</html>

@@ -1,25 +1,23 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Plus,
   FileText,
   Globe,
-  Pencil,
   Settings,
-  Store,
   Crown,
+  ChefHat,
+  LayoutTemplate,
+  UtensilsCrossed,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const session = await auth();
-
-  if (!session?.user) {
-    redirect("/login");
-  }
+  if (!session?.user) redirect("/login");
 
   const [menus, restaurant, user] = await Promise.all([
     prisma.menu.findMany({
@@ -32,9 +30,7 @@ export default async function DashboardPage() {
       },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.restaurant.findUnique({
-      where: { userId: session.user.id },
-    }),
+    prisma.restaurant.findUnique({ where: { userId: session.user.id } }),
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: { plan: true },
@@ -43,195 +39,235 @@ export default async function DashboardPage() {
 
   const totalDishes = menus.reduce(
     (sum, menu) =>
-      sum +
-      menu.categories.reduce((catSum, cat) => catSum + cat.dishes.length, 0),
+      sum + menu.categories.reduce((s, c) => s + c.dishes.length, 0),
     0
   );
+  const publishedCount = menus.filter((m) => m.isPublished).length;
+  const isPro = user?.plan === "PRO";
+  const initials = session.user.name
+    ? session.user.name.slice(0, 2).toUpperCase()
+    : (session.user.email ?? "??").slice(0, 2).toUpperCase();
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-white">
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b border-border bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-          <h1 className="font-[family-name:var(--font-playfair)] text-xl font-bold text-foreground">
-            Menufique
-          </h1>
-          <div className="flex items-center gap-4">
-            {user?.plan !== "PRO" && (
+          {/* Logo */}
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
+              <UtensilsCrossed size={16} />
+            </div>
+            <span className="font-[family-name:var(--font-playfair)] text-lg font-bold text-foreground">
+              Menufique
+            </span>
+          </Link>
+
+          {/* Right nav */}
+          <div className="flex items-center gap-1">
+            {!isPro && (
               <Link
                 href="/dashboard/billing"
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
+                className="mr-2 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
               >
-                <Crown size={14} />
-                <span>Passer Pro</span>
+                <Crown size={13} />
+                Passer Pro
               </Link>
             )}
-            {user?.plan === "PRO" && (
+            {isPro && (
               <Link
                 href="/dashboard/billing"
-                className="flex items-center gap-1.5 text-sm font-medium text-primary"
+                className="mr-2 flex items-center gap-1.5 rounded-lg bg-primary-light px-3 py-1.5 text-sm font-semibold text-primary"
               >
-                <Crown size={14} />
-                <span className="hidden sm:inline">Pro</span>
+                <Crown size={13} />
+                Pro
               </Link>
             )}
             <Link
               href="/settings/restaurant"
-              className="flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground"
+              title="Paramètres"
             >
-              <Settings size={16} />
-              <span className="hidden sm:inline">Paramètres</span>
+              <Settings size={18} />
             </Link>
-            <span className="text-sm text-muted">
-              {session.user.name ?? session.user.email}
-            </span>
             <Link
               href="/api/auth/signout"
-              className="text-sm text-muted hover:text-foreground"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground"
+              title="Déconnexion"
             >
-              Déconnexion
+              <LogOut size={18} />
             </Link>
+            <div className="ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+              {initials}
+            </div>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
-        {/* Restaurant banner if not configured */}
+        {/* Restaurant setup banner */}
         {!restaurant && (
           <Link
             href="/settings/restaurant"
-            className="mb-6 flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 transition-colors hover:bg-orange-100"
+            className="mb-6 flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary-light px-5 py-4 transition-colors hover:bg-primary-100"
           >
-            <Store size={20} className="text-primary" />
-            <div className="flex-1">
-              <p className="font-medium text-foreground">
-                Configurez votre restaurant
-              </p>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <ChefHat size={20} className="text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-foreground">Configurez votre restaurant</p>
               <p className="text-sm text-muted">
-                Ajoutez le nom, l&apos;adresse et les horaires de votre
-                restaurant
+                Ajoutez le nom, l&apos;adresse et les coordonnées
               </p>
             </div>
+            <span className="shrink-0 text-sm font-medium text-primary">
+              Commencer →
+            </span>
           </Link>
         )}
 
-        <div className="mb-8 flex items-center justify-between">
+        {/* Page header */}
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">
-              Bonjour{session.user.name ? `, ${session.user.name}` : ""} !
-            </h2>
-            <p className="text-muted">
-              {menus.length > 0
-                ? `${menus.length} menu${menus.length > 1 ? "s" : ""} · ${totalDishes} plat${totalDishes > 1 ? "s" : ""}`
-                : "Gérez vos menus de restaurant en un seul endroit."}
+            <h1 className="text-2xl font-bold text-foreground">
+              Bonjour{session.user.name ? `, ${session.user.name.split(" ")[0]}` : ""} 👋
+            </h1>
+            <p className="mt-0.5 text-sm text-muted">
+              {restaurant ? restaurant.name : "Vos menus"}
             </p>
           </div>
-          {user?.plan === "FREE" && menus.length >= 1 ? (
+          {isPro || menus.length === 0 ? (
             <Link
-              href="/dashboard/billing"
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-primary px-6 font-medium text-primary transition-colors hover:bg-primary/5"
-              title="Le plan gratuit est limité à 1 menu"
+              href="/menus/new"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
             >
-              <Crown size={18} />
-              <span className="hidden sm:inline">Passer Pro</span>
+              <Plus size={18} />
+              <span className="hidden sm:inline">Nouveau menu</span>
             </Link>
           ) : (
             <Link
-              href="/menus/new"
-              className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 font-medium text-white transition-colors hover:bg-primary-hover"
+              href="/dashboard/billing"
+              className="inline-flex items-center gap-2 rounded-xl border-2 border-primary px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary-light"
+              title="Plan gratuit : 1 menu max"
             >
-              <Plus size={20} />
-              <span className="hidden sm:inline">Nouveau menu</span>
+              <Crown size={16} />
+              <span className="hidden sm:inline">Passer Pro</span>
             </Link>
           )}
         </div>
 
-        {menus.length === 0 ? (
-          /* Empty state */
-          <Card className="py-12 text-center">
-            <CardHeader className="items-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-light">
-                <FileText size={32} className="text-primary" />
-              </div>
-              <CardTitle>Aucun menu pour l&apos;instant</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-6 text-muted">
-                Créez votre premier menu en quelques minutes.
-              </p>
-              <Link
-                href="/menus/new"
-                className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 font-medium text-white transition-colors hover:bg-primary-hover"
+        {/* Stats strip */}
+        {menus.length > 0 && (
+          <div className="mb-8 grid grid-cols-3 gap-3">
+            {[
+              { icon: LayoutTemplate, label: "Menus", value: menus.length },
+              { icon: ChefHat, label: "Plats", value: totalDishes },
+              { icon: Globe, label: "Publiés", value: publishedCount },
+            ].map(({ icon: Icon, label, value }) => (
+              <div
+                key={label}
+                className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 shadow-card"
               >
-                <Plus size={20} />
-                Créer mon premier menu
-              </Link>
-            </CardContent>
-          </Card>
-        ) : (
-          /* Menu list */
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-light">
+                  <Icon size={18} className="text-primary" />
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+                  <p className="text-xs text-muted mt-0.5">{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {menus.length === 0 && (
+          <div className="flex flex-col items-center rounded-3xl border-2 border-dashed border-border bg-white py-20 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary-light">
+              <FileText size={36} className="text-primary" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">
+              Aucun menu pour l&apos;instant
+            </h2>
+            <p className="mt-2 max-w-xs text-sm text-muted">
+              Créez votre premier menu en quelques minutes. Gratuit, sans carte bancaire.
+            </p>
+            <Link
+              href="/menus/new"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-hover"
+            >
+              <Plus size={20} />
+              Créer mon premier menu
+            </Link>
+          </div>
+        )}
+
+        {/* Menu grid */}
+        {menus.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {menus.map((menu) => {
               const dishCount = menu.categories.reduce(
                 (sum, cat) => sum + cat.dishes.length,
                 0
               );
+              const previewDishes = menu.categories
+                .flatMap((c) => c.dishes.slice(0, 2))
+                .slice(0, 3);
+
               return (
-                <Link key={menu.id} href={`/menus/${menu.id}`}>
-                  <Card className="h-full transition-shadow hover:shadow-md">
-                    <CardContent className="pt-0">
-                      <div className="flex items-start justify-between">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-foreground truncate">
-                            {menu.name}
-                          </h3>
-                          <p className="mt-1 text-sm text-muted">
-                            {menu.categories.length} catégorie
-                            {menu.categories.length !== 1 ? "s" : ""} ·{" "}
-                            {dishCount} plat{dishCount !== 1 ? "s" : ""}
+                <Link key={menu.id} href={`/menus/${menu.id}`} className="group">
+                  <div className="flex h-full flex-col rounded-2xl border border-border bg-white p-5 shadow-card transition-all duration-200 hover:border-primary/30 hover:shadow-md">
+                    {/* Card header */}
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+                        {menu.name}
+                      </h3>
+                      {menu.isPublished && (
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-success-light px-2 py-0.5 text-xs font-medium text-success">
+                          <Globe size={10} />
+                          Publié
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Meta */}
+                    <p className="mb-3 text-xs text-muted">
+                      {menu.categories.length} catégorie{menu.categories.length !== 1 ? "s" : ""}{" "}
+                      · {dishCount} plat{dishCount !== 1 ? "s" : ""}
+                    </p>
+
+                    {/* Dish preview */}
+                    {previewDishes.length > 0 && (
+                      <div className="mb-4 flex-1 space-y-1.5 rounded-xl bg-surface px-3 py-2.5">
+                        {previewDishes.map((dish) => (
+                          <div
+                            key={dish.id}
+                            className="flex items-baseline justify-between gap-2 text-xs"
+                          >
+                            <span className="truncate text-foreground">{dish.name}</span>
+                            <span className="shrink-0 font-medium text-primary">
+                              {formatPrice(Number(dish.price))}
+                            </span>
+                          </div>
+                        ))}
+                        {dishCount > previewDishes.length && (
+                          <p className="text-xs text-muted">
+                            +{dishCount - previewDishes.length} autres…
                           </p>
-                        </div>
-                        {menu.isPublished && (
-                          <span className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                            <Globe size={12} />
-                            Publié
-                          </span>
                         )}
                       </div>
+                    )}
 
-                      {/* Quick preview: first few dishes */}
-                      {menu.categories.length > 0 && (
-                        <div className="mt-3 space-y-1">
-                          {menu.categories.slice(0, 2).map((cat) => (
-                            <div key={cat.id}>
-                              <p className="text-xs font-medium uppercase text-muted tracking-wide">
-                                {cat.name}
-                              </p>
-                              {cat.dishes.slice(0, 2).map((dish) => (
-                                <div
-                                  key={dish.id}
-                                  className="flex justify-between text-sm"
-                                >
-                                  <span className="truncate text-foreground">
-                                    {dish.name}
-                                  </span>
-                                  <span className="shrink-0 text-primary">
-                                    {formatPrice(Number(dish.price))}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="mt-4 flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs text-muted">
-                          <Pencil size={10} />
-                          {menu.templateId}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    {/* Footer */}
+                    <div className="flex items-center justify-between">
+                      <span className="rounded-lg bg-surface px-2 py-1 text-xs font-medium text-muted">
+                        {menu.templateId === "ai-custom" ? "✦ IA" : menu.templateId}
+                      </span>
+                      <span className="text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                        Ouvrir →
+                      </span>
+                    </div>
+                  </div>
                 </Link>
               );
             })}

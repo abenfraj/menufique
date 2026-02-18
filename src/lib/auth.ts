@@ -7,10 +7,15 @@ import { prisma } from "@/lib/db";
 import { loginSchema } from "@/lib/validators";
 import { sendWelcomeEmail } from "@/lib/email";
 
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 jours en secondes
+const TOKEN_REFRESH_INTERVAL = 24 * 60 * 60; // Rafraîchir les données DB toutes les 24h
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
+    maxAge: SESSION_MAX_AGE,
+    updateAge: 24 * 60 * 60, // Prolonger la session glissante toutes les 24h d'activité
   },
   pages: {
     signIn: "/login",
@@ -60,11 +65,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
+      // Première connexion : on initialise le token
       if (user) {
         token.id = user.id;
+        token.lastDbRefresh = 0; // Force un refresh immédiat
       }
-      // Fetch fresh plan data
-      if (token.id) {
+
+      // Rafraîchir les données DB seulement toutes les 24h (pas à chaque requête)
+      const now = Math.floor(Date.now() / 1000);
+      const lastRefresh = (token.lastDbRefresh as number) ?? 0;
+      if (token.id && now - lastRefresh > TOKEN_REFRESH_INTERVAL) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
           select: { plan: true, name: true, image: true },
@@ -73,8 +83,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.plan = dbUser.plan;
           token.name = dbUser.name;
           token.picture = dbUser.image;
+          token.lastDbRefresh = now;
         }
       }
+
       return token;
     },
     async session({ session, token }) {

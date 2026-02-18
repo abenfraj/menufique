@@ -1,3 +1,4 @@
+import type { Page } from "puppeteer-core";
 import { prisma } from "@/lib/db";
 import { formatPrice } from "@/lib/utils";
 import { TemplateData } from "@/templates/types";
@@ -85,8 +86,28 @@ export async function generateMenuPdf(menuId: string): Promise<Buffer> {
   const browser = await launchBrowser();
 
   try {
-    const page = await browser.newPage();
+    const page = (await browser.newPage()) as unknown as Page;
     await page.setContent(html, { waitUntil: "networkidle0" });
+
+    // Wait for fonts to finish loading — critical for correct scale calculation
+    await page.evaluate(() => document.fonts.ready);
+
+    // Wait for the auto-scaler to complete on all .menu-page elements
+    const menuPageCount = (html.match(/class="menu-page"/g) ?? []).length;
+    if (menuPageCount > 0) {
+      await page.waitForFunction(
+        (expected: number) =>
+          document.querySelectorAll('.menu-page[data-mf-scaled]').length === expected ||
+          document.querySelectorAll('.menu-page').length === 0,
+        { timeout: 5000 },
+        menuPageCount
+      ).catch(() => {
+        // If scaler didn't complete, proceed anyway — overflow:hidden will clip
+      });
+    }
+
+    // Short settle after scaling to allow layout reflow
+    await new Promise((r) => setTimeout(r, 150));
 
     const isAiCustom = menu.templateId === "ai-custom";
     const pdfBuffer = await page.pdf({
@@ -118,6 +139,39 @@ function buildPdfHtml(data: TemplateData, templateId: string): string {
 }
 
 // ────────────────────────── AI CUSTOM ──────────────────────────
+
+/** CSS that locks .menu-page to exact A4 dimensions — injected into PDF HTML if missing. */
+const PDF_A4_LOCK_CSS = `<style id="mf-a4-lock">
+.menu-page{width:210mm!important;height:297mm!important;min-height:unset!important;max-height:297mm!important;overflow:hidden!important;box-sizing:border-box!important;position:relative!important;}
+</style>`;
+
+/** JS auto-scaler — injected into PDF HTML before Puppeteer renders it. */
+const PDF_SCALER_SCRIPT = `<script data-mf-scaler="1">
+(function(){
+  var DONE='data-mf-scaled';
+  function fit(){
+    document.querySelectorAll('.menu-page').forEach(function(page){
+      if(page.hasAttribute(DONE))return;
+      page.setAttribute(DONE,'1');
+      var pH=page.clientHeight,cH=page.scrollHeight;
+      if(!pH||cH<=pH+1)return;
+      var scale=pH/cH;
+      var wrap=document.createElement('div');
+      wrap.style.cssText='transform-origin:top left;width:'+(100/scale).toFixed(3)+'%;display:block;';
+      while(page.firstChild)wrap.appendChild(page.firstChild);
+      page.appendChild(wrap);
+      wrap.style.transform='scale('+scale.toFixed(6)+')';
+    });
+  }
+  function run(){
+    if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}
+    else{fit();}
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}
+  else{run();}
+})();
+<\/script>`;
+
 function buildAiCustomPdfHtml(data: TemplateData): string {
   if (data.aiDesignHtml) {
     // The AI-generated HTML is already a complete document
@@ -131,7 +185,17 @@ function buildAiCustomPdfHtml(data: TemplateData): string {
       );
     }
 
-    // Inject watermark for FREE plan
+    // Inject A4 lock CSS if not already present (handles old generated menus)
+    if (!html.includes('id="mf-a4-lock"')) {
+      html = html.replace("</head>", `${PDF_A4_LOCK_CSS}</head>`);
+    }
+
+    // Inject auto-scaler JS if not already present (handles old generated menus)
+    if (!html.includes('data-mf-scaler')) {
+      html = html.replace("</body>", `${PDF_SCALER_SCRIPT}</body>`);
+    }
+
+    // Inject watermark for FREE plan (must be last, after scaler)
     if (data.branding.showWatermark) {
       html = html.replace("</body>", `${watermarkHtml()}</body>`);
     }

@@ -177,27 +177,31 @@ export async function POST(request: Request) {
       options.imageMode = "ai-photos";
     }
 
-    // Generate cover image if requested
+    // Generate cover image if requested — use selected style for visual variety
     if (options.includeCoverPage) {
-      // Detect cuisine style (we'll use a placeholder, the AI will refine)
       coverImageDataUri = await generateCoverImage(
         menu.restaurant.name,
-        "gastronomique français"
+        options.style
       );
     }
 
-    // 7. Generate design with images
+    const logoUrl = menu.restaurant.logoUrl ?? undefined;
+    const imagesArg = generatedImages.length > 0 ? generatedImages : undefined;
+
+    // 7. Generate design with images + logo
     const designPrompt = buildDesignPrompt(
       templateData,
       options,
-      generatedImages.length > 0 ? generatedImages : undefined,
-      coverImageDataUri ?? undefined
+      imagesArg,
+      coverImageDataUri ?? undefined,
+      logoUrl
     );
     const designResult = await generateMenuDesign(
       templateData,
       options,
-      generatedImages.length > 0 ? generatedImages : undefined,
-      coverImageDataUri ?? undefined
+      imagesArg,
+      coverImageDataUri ?? undefined,
+      logoUrl
     );
 
     // 8. Save to database

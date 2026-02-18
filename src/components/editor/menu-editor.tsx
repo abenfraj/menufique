@@ -32,6 +32,7 @@ import {
   Send,
 } from "lucide-react";
 import Link from "next/link";
+import { ImportFromUrlModal } from "./import-from-url-modal";
 
 // ─── Types ───────────────────────────────────
 
@@ -156,6 +157,9 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   const [importPreview, setImportPreview] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedText, setExtractedText] = useState<string | null>(null);
+
+  // URL import state
+  const [showImportUrlModal, setShowImportUrlModal] = useState(false);
 
   // Share state
   const [showShareModal, setShowShareModal] = useState(false);
@@ -475,119 +479,114 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-border bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-12 max-w-[1600px] items-center justify-between px-3">
-          <div className="flex items-center gap-2">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-4">
+          {/* Left: back + name */}
+          <div className="flex min-w-0 items-center gap-2">
             <Link
               href="/dashboard"
-              className="rounded-lg p-1.5 text-muted transition-colors hover:bg-gray-100 hover:text-foreground"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground"
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft size={17} />
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="h-4 w-px shrink-0 bg-border" />
+            <div className="flex min-w-0 items-center gap-1.5">
               <input
                 type="text"
                 value={menuName}
                 onChange={(e) => setMenuName(e.target.value)}
                 onBlur={handleSaveName}
                 onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
-                className="bg-transparent font-[family-name:var(--font-playfair)] text-base font-bold text-foreground outline-none transition-all focus:underline focus:decoration-primary/30"
+                className="min-w-0 max-w-[200px] truncate bg-transparent text-sm font-semibold text-foreground outline-none transition-all focus:underline focus:decoration-primary/30 sm:max-w-xs"
               />
-              {isSaving && (
-                <Save size={14} className="animate-pulse text-muted" />
-              )}
+              {isSaving && <Loader2 size={12} className="shrink-0 animate-spin text-muted" />}
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            {/* AI Button */}
+          {/* Right: actions */}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* AI Button — Pro only */}
             {isPro && (
               <button
-                onClick={() => {
-                  setShowAIPanel(!showAIPanel);
-                  setShowTemplateSelector(false);
-                }}
+                onClick={() => { setShowAIPanel(!showAIPanel); setShowTemplateSelector(false); }}
                 disabled={isGeneratingAI}
-                className={`group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-all disabled:opacity-50 ${
+                className={`group flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-all disabled:opacity-50 ${
                   showAIPanel
                     ? "bg-primary text-white shadow-md shadow-primary/25"
-                    : "border border-primary/20 bg-gradient-to-r from-primary/5 to-orange-50 text-primary hover:shadow-md hover:shadow-primary/10"
+                    : "border border-primary/25 bg-gradient-to-r from-primary/5 to-orange-50 text-primary hover:border-primary/50 hover:shadow-sm"
                 }`}
               >
-                {isGeneratingAI ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Sparkles size={14} className="transition-transform group-hover:scale-110" />
-                )}
+                {isGeneratingAI
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <Sparkles size={13} className="transition-transform group-hover:scale-110" />
+                }
                 <span className="hidden sm:inline">
-                  {isGeneratingAI
-                    ? "Génération..."
-                    : menu.templateId === "ai-custom"
-                      ? "Régénérer"
-                      : "IA Design"}
+                  {isGeneratingAI ? "Génération..." : menu.templateId === "ai-custom" ? "Régénérer" : "IA Design"}
                 </span>
               </button>
             )}
 
-            {/* Template selector */}
+            {/* Divider */}
+            <div className="h-5 w-px bg-border" />
+
+            {/* Template */}
             <button
-              onClick={() => {
-                setShowTemplateSelector(!showTemplateSelector);
-                setShowAIPanel(false);
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted transition-all hover:border-primary/30 hover:text-foreground"
+              onClick={() => { setShowTemplateSelector(!showTemplateSelector); setShowAIPanel(false); }}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-all ${
+                showTemplateSelector
+                  ? "bg-surface text-foreground"
+                  : "text-muted hover:bg-surface hover:text-foreground"
+              }`}
             >
               <Palette size={14} />
               <span className="hidden sm:inline">Template</span>
             </button>
 
-            {/* Download PDF */}
+            {/* PDF */}
             <button
               onClick={handleDownloadPdf}
               disabled={isDownloadingPdf || !hasDishes}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted transition-all hover:border-primary/30 hover:text-foreground disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-muted transition-all hover:bg-surface hover:text-foreground disabled:opacity-40"
               title="Télécharger en PDF"
             >
-              {isDownloadingPdf ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Download size={14} />
-              )}
-              <span className="hidden sm:inline">
-                {isDownloadingPdf ? "PDF..." : "PDF"}
-              </span>
+              {isDownloadingPdf ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              <span className="hidden sm:inline">{isDownloadingPdf ? "PDF..." : "PDF"}</span>
             </button>
 
-            {/* Share by email */}
+            {/* Share */}
             {menu.isPublished && (
               <button
                 onClick={() => { setShowShareModal(true); setShareError(null); setShareSuccess(false); }}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted transition-all hover:border-primary/30 hover:text-foreground"
-                title="Partager par email"
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-muted transition-all hover:bg-surface hover:text-foreground"
               >
                 <Mail size={14} />
                 <span className="hidden sm:inline">Partager</span>
               </button>
             )}
 
+            {/* Divider */}
+            <div className="h-5 w-px bg-border" />
+
             {/* Publish */}
-            <Button
-              size="sm"
-              variant={menu.isPublished ? "outline" : "primary"}
+            <button
               onClick={handleTogglePublish}
-              className="rounded-lg"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
+                menu.isPublished
+                  ? "bg-success-light text-success hover:bg-green-100"
+                  : "bg-primary text-white hover:bg-primary-hover"
+              }`}
             >
               {menu.isPublished ? (
                 <>
-                  <EyeOff size={14} />
-                  <span className="hidden sm:inline">Dépublier</span>
+                  <Globe size={13} />
+                  <span className="hidden sm:inline">Publié</span>
                 </>
               ) : (
                 <>
-                  <Globe size={14} />
+                  <Globe size={13} />
                   <span className="hidden sm:inline">Publier</span>
                 </>
               )}
-            </Button>
+            </button>
           </div>
         </div>
       </header>
@@ -1070,16 +1069,66 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
         </div>
       )}
 
-      {/* ══════════════════ Content: split layout like bolt.new ══════════════════ */}
-      <div className="flex h-[calc(100vh-3rem)]">
-        {/* Left: Editor (scrollable) */}
-        <div className="w-1/2 overflow-y-auto border-r border-border p-4">
-          <div className="mx-auto max-w-2xl">
-            <div className="space-y-2">
+      {/* ══════════════════ Split layout ══════════════════ */}
+      <div className="flex h-[calc(100vh-3.5rem)]">
+
+        {/* Left: Editor */}
+        <div className="flex w-[48%] flex-col overflow-hidden border-r border-border">
+          {/* Left toolbar */}
+          <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4 py-2">
+            <span className="text-xs font-semibold uppercase tracking-widest text-muted">
+              Contenu
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowImportUrlModal(true)}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-foreground"
+                title="Importer depuis Deliveroo / Uber Eats"
+              >
+                <Globe size={12} />
+                <span>Import URL</span>
+              </button>
+              <button
+                onClick={() => setShowJsonImport(!showJsonImport)}
+                className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors ${
+                  showJsonImport ? "bg-surface text-foreground" : "text-muted hover:bg-surface hover:text-foreground"
+                }`}
+              >
+                <FileUp size={12} />
+                <span>JSON</span>
+              </button>
+            </div>
+          </div>
+
+          {/* JSON import */}
+          {showJsonImport && (
+            <div className="animate-slide-down shrink-0 border-b border-border bg-surface px-4 py-3">
+              <textarea
+                value={jsonText}
+                onChange={(e) => setJsonText(e.target.value)}
+                placeholder='{"categories": [{"name": "Entrées", "dishes": [{"name": "...", "price": 12.00}]}]}'
+                rows={5}
+                className="w-full resize-none rounded-xl border border-border bg-white px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted/40 focus:border-primary focus:outline-none"
+                autoFocus
+              />
+              <div className="mt-2 flex gap-2">
+                <Button size="sm" onClick={handleImportJson} disabled={!jsonText.trim()} className="rounded-xl">
+                  <FileUp size={13} /> Importer
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setShowJsonImport(false); setJsonText(""); }} className="rounded-xl">
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Scrollable categories */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="mx-auto max-w-xl space-y-2">
               {menu.categories
                 .sort((a, b) => a.sortOrder - b.sortOrder)
                 .map((category, idx) => (
-                  <div key={category.id} className="animate-slide-up" style={{ animationDelay: `${idx * 50}ms` }}>
+                  <div key={category.id} className="animate-slide-up" style={{ animationDelay: `${idx * 40}ms` }}>
                     <CategoryEditor
                       menuId={menuId}
                       category={category}
@@ -1087,142 +1136,100 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                     />
                   </div>
                 ))}
-            </div>
 
-            {/* Add category */}
-            {showAddCategory ? (
-              <div className="animate-scale-in mt-3 flex items-center gap-2">
-                <Input
-                  placeholder="Nom de la catégorie (ex: Entrées, Plats, Desserts)"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
-                  className="rounded-lg"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleAddCategory} className="rounded-lg">
-                  Ajouter
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowAddCategory(false);
-                    setNewCategoryName("");
-                  }}
-                  className="rounded-lg"
-                >
-                  Annuler
-                </Button>
-              </div>
-            ) : (
-              <>
-              <div className="mt-3 flex gap-2">
+              {/* Add category */}
+              {showAddCategory ? (
+                <div className="animate-scale-in mt-2 flex items-center gap-2">
+                  <Input
+                    placeholder="Ex: Entrées, Plats, Desserts..."
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={handleAddCategory}>Ajouter</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setShowAddCategory(false); setNewCategoryName(""); }}>
+                    <X size={14} />
+                  </Button>
+                </div>
+              ) : (
                 <button
                   onClick={() => setShowAddCategory(true)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-muted transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-4 text-sm text-muted transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
                 >
                   <Plus size={16} />
                   Ajouter une catégorie
                 </button>
-                <button
-                  onClick={() => setShowJsonImport(!showJsonImport)}
-                  className={`flex items-center gap-2 rounded-lg border-2 border-dashed px-4 py-3 transition-all ${
-                    showJsonImport
-                      ? "border-primary/40 bg-primary/5 text-primary"
-                      : "border-border text-muted hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
-                  }`}
-                  title="Importer un menu JSON"
-                >
-                  <FileUp size={16} />
-                  JSON
-                </button>
-              </div>
+              )}
 
-              {/* JSON import textarea */}
-              {showJsonImport && (
-                <div className="animate-scale-in mt-3 rounded-lg border border-border bg-white p-3">
-                  <p className="mb-2 text-xs font-medium text-muted">
-                    Collez votre JSON ci-dessous
+              {/* Empty state — PRO */}
+              {menu.categories.length === 0 && isPro && !showAddCategory && (
+                <div className="mt-4 rounded-2xl border border-dashed border-primary/20 bg-gradient-to-br from-orange-50/50 to-white p-6 text-center">
+                  <Sparkles size={28} className="mx-auto mb-3 text-primary/40" />
+                  <p className="text-sm font-semibold text-foreground">
+                    Ajoutez vos plats, l&apos;IA créera un design unique
                   </p>
-                  <textarea
-                    value={jsonText}
-                    onChange={(e) => setJsonText(e.target.value)}
-                    placeholder='{"categories": [{"name": "Entrées", "dishes": [{"name": "...", "price": 12.00}]}]}'
-                    rows={8}
-                    className="w-full resize-none rounded-lg border border-border bg-gray-50 px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted/40 focus:border-primary focus:outline-none"
-                    autoFocus
-                  />
-                  <div className="mt-2 flex gap-2">
-                    <Button size="sm" onClick={handleImportJson} disabled={!jsonText.trim()} className="rounded-lg">
-                      <FileUp size={14} />
-                      Importer
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => { setShowJsonImport(false); setJsonText(""); }}
-                      className="rounded-lg"
-                    >
-                      Annuler
-                    </Button>
-                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    Ou importez une photo / URL de votre menu existant
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => { setShowAIPanel(true); setAiTab("import"); }}
+                  >
+                    <Upload size={13} />
+                    Importer un menu existant
+                  </Button>
                 </div>
               )}
-              </>
-            )}
-
-            {/* Empty state for PRO users */}
-            {menu.categories.length === 0 && isPro && (
-              <div className="mt-6 rounded-xl border border-dashed border-primary/20 bg-gradient-to-br from-orange-50/50 to-white p-6 text-center">
-                <Sparkles size={28} className="mx-auto mb-2 text-primary/40" />
-                <p className="text-sm font-medium text-foreground">
-                  Ajoutez vos plats puis laissez l&apos;IA créer un design unique
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  Ou importez une photo de votre ancien menu
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 rounded-lg"
-                  onClick={() => {
-                    setShowAIPanel(true);
-                    setAiTab("import");
-                  }}
-                >
-                  <Upload size={13} />
-                  Importer un menu existant
-                </Button>
-              </div>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* Right: Preview (fixed, full height) */}
-        <div className="flex w-1/2 flex-col bg-gray-50">
-          <div className="flex items-center justify-between border-b border-border bg-white px-3 py-1.5">
-            <p className="text-xs font-medium text-muted">Aperçu</p>
+        {/* Right: Preview */}
+        <div className="flex w-[52%] flex-col bg-[#e8eaed]">
+          {/* Preview toolbar */}
+          <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted">
+                Aperçu
+              </span>
+              {menu.isPublished && (
+                <a
+                  href={`/m/${menu.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 rounded-full bg-success-light px-2 py-0.5 text-[10px] font-medium text-success transition-colors hover:bg-green-100"
+                >
+                  <Globe size={10} />
+                  Voir la page publique
+                </a>
+              )}
+            </div>
             <button
               onClick={() => setPdfKey((k) => k + 1)}
-              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-gray-100 hover:text-foreground"
+              className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-foreground"
             >
               <RefreshCw size={12} />
               Rafraîchir
             </button>
           </div>
+
           {hasDishes ? (
             <iframe
               key={pdfKey}
               src={`/api/menus/${menuId}/preview`}
-              className="flex-1 w-full bg-white"
+              className="flex-1 w-full"
               title="Aperçu du menu"
             />
           ) : (
             <div className="flex flex-1 items-center justify-center">
               <div className="text-center">
-                <FileText size={32} className="mx-auto mb-2 text-muted/30" />
-                <p className="text-sm text-muted/60">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm">
+                  <FileText size={28} className="text-muted/40" />
+                </div>
+                <p className="text-sm font-medium text-muted/70">
                   Ajoutez des plats pour voir l&apos;aperçu
                 </p>
               </div>
@@ -1230,6 +1237,18 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
           )}
         </div>
       </div>
+
+      {/* Import from URL modal */}
+      {showImportUrlModal && (
+        <ImportFromUrlModal
+          menuId={menuId}
+          onClose={() => setShowImportUrlModal(false)}
+          onImported={() => {
+            fetchMenu();
+            setPdfKey((k) => k + 1);
+          }}
+        />
+      )}
 
       {/* Share by email modal */}
       {showShareModal && (

@@ -194,15 +194,30 @@ export async function generateFoodImages(
 }
 
 /**
+ * Style-specific cover image prompt variations to avoid DALL-E generating
+ * the same image every time.
+ */
+const COVER_STYLE_PROMPTS: Record<string, string> = {
+  elegant: "A breathtaking overhead shot of an elegant French gastronomic restaurant table: fine china plates with artistic plating, crystal glasses with wine, white linen tablecloth, a single rose, soft candlelight. Cinematic, editorial, warm golden hour light.",
+  modern: "A sleek modern restaurant interior with minimalist design: clean lines, geometric shapes, warm concrete and wood textures, pendant lights casting warm pools of light on an empty marble bar counter. Architectural photography style, blue hour.",
+  rustic: "A cozy rustic French bistrot atmosphere: wooden barrels, stone walls, hanging dried herbs and garlic, a wooden table with a checkered cloth, a simple baguette and a glass of red wine. Warm amber light, authentic and inviting.",
+  minimal: "A pristine white dining table seen from above: a single perfect dish with microgreens, a single tulip in a thin vase, white napkin with a minimal fold. Ultra-clean, soft diffused daylight, Scandinavian aesthetic.",
+  colorful: "A vibrant and festive outdoor terrasse: colorful flower pots, a cheerful spread of colorful dishes and cocktails, string lights, joyful Mediterranean energy. Bright natural light, summer warmth.",
+  auto: "A beautiful French restaurant scene: an artfully plated dish of classic French cuisine on an elegant table, warm candlelight, bokeh background with a cozy dining room atmosphere. Professional food photography, inviting and appetizing.",
+};
+
+/**
  * Generate a cover image for the restaurant via DALL-E 3.
+ * Uses style-specific prompts to ensure visual variety between generations.
  */
 export async function generateCoverImage(
   restaurantName: string,
-  cuisineStyle: string
+  style: string = "auto"
 ): Promise<string | null> {
   try {
     const client = getOpenAIClient();
-    const prompt = `Stunning hero image for a ${cuisineStyle} restaurant called "${restaurantName}". Beautiful food spread or elegant restaurant interior, cinematic lighting, warm tones, professional photography quality. Landscape composition, inviting atmosphere. No text, no watermarks, no logos.`;
+    const basePrompt = COVER_STYLE_PROMPTS[style] ?? COVER_STYLE_PROMPTS.auto;
+    const prompt = `${basePrompt} The restaurant is named "${restaurantName}". No text overlays, no watermarks, no logos, no people in focus. Landscape orientation, high resolution, magazine quality.`;
 
     const response = await client.images.generate({
       model: "dall-e-3",
@@ -236,7 +251,8 @@ export function buildDesignPrompt(
     menuPageCount: 1,
   },
   images?: GeneratedImage[],
-  coverImageDataUri?: string
+  coverImageDataUri?: string,
+  logoUrl?: string
 ): string {
   const { restaurant, menu } = data;
 
@@ -316,22 +332,34 @@ ${restaurant.address ? `- L'adresse "${restaurant.address}" en dessous, c'est to
   const menuPageCount = options.menuPageCount ?? 1;
   const totalPages = menuPageCount + (options.includeCoverPage ? 1 : 0);
 
+  // Count total dishes for fit hints
+  const totalDishCount = menu.categories.reduce((s, c) => s + c.dishes.length, 0);
+  const twoColHint = totalDishCount >= 8
+    ? ` Avec ${totalDishCount} plats, utilise OBLIGATOIREMENT une disposition en 2 colonnes.`
+    : "";
+
   const fitInstruction = menuPageCount === 1
-    ? `- CRITIQUE : TOUT le contenu du menu DOIT tenir sur UNE SEULE page A4 (297mm de haut). S'il y a beaucoup de plats, réduis les font-size (min 10px pour les noms, 8px pour les descriptions), réduis les marges et espacements, utilise 2 colonnes si nécessaire. AUCUN contenu ne doit déborder sur une 2e page.
-- La page de menu utilise .menu-page { width: 210mm; height: 297mm; padding: 12mm; box-sizing: border-box; overflow: hidden; position: relative; }
-- N'utilise PAS min-height, utilise HEIGHT: 297mm pour forcer la taille exacte.`
-    : `- Le contenu du menu doit occuper EXACTEMENT ${menuPageCount} pages A4.
-- Chaque page utilise .menu-page { width: 210mm; height: 297mm; padding: 12mm; box-sizing: border-box; page-break-after: always; overflow: hidden; position: relative; }
+    ? `- ⚠️ RÈGLE ABSOLUE N°1 : TOUT le contenu DOIT tenir dans UNE SEULE page A4. Si c'est trop long, tu DOIS réduire les font-size (minimum : noms 10px, descriptions 8px, prix 10px), réduire padding/margin, utiliser 2 colonnes. Mieux vaut du texte petit que du contenu coupé.${twoColHint}
+- La page utilise : .menu-page { width: 210mm; height: 297mm; padding: 12mm; box-sizing: border-box; overflow: hidden; position: relative; }
+- N'utilise JAMAIS min-height. Utilise TOUJOURS height: 297mm (fixe et strict).`
+    : `- Le contenu occupe EXACTEMENT ${menuPageCount} pages A4. Répartis équitablement.
+- Chaque page : .menu-page { width: 210mm; height: 297mm; padding: 12mm; box-sizing: border-box; page-break-after: always; overflow: hidden; position: relative; }
 - .menu-page:last-child { page-break-after: auto; }
-- Répartis le contenu uniformément entre les ${menuPageCount} pages. Chaque page doit être remplie, pas d'espace vide en bas.`;
+- N'utilise JAMAIS min-height sur .menu-page.
+- Si une page déborde, réduis les font-size de cette page (noms: min 10px, desc: min 8px).`;
+
+  const layoutHint = totalDishCount >= 8
+    ? `⚠️ Ce menu contient ${totalDishCount} plats — utilise OBLIGATOIREMENT une disposition 2 colonnes pour que tout tienne.`
+    : `Ce menu contient ${totalDishCount} plats.`;
 
   const pageLayoutInstruction = `
 
-## FORMAT DE PAGE — A4 (OBLIGATOIRE, NE PAS IGNORER)
+## FORMAT DE PAGE — A4 STRICT (VIOLATION = DESIGN REFUSÉ)
 ${fitInstruction}
-- Le document total a EXACTEMENT ${totalPages} div.menu-page${options.includeCoverPage ? ` (1 couverture + ${menuPageCount} page(s) de contenu)` : ""}.
-- body { margin: 0; padding: 0; } — le body ne doit PAS avoir de padding.
-- Si le contenu déborde, réduis les tailles de police et espacements. Si le contenu est insuffisant, agrandis-les. L'objectif est que chaque page soit EXACTEMENT remplie.`;
+- Le document a EXACTEMENT ${totalPages} div.menu-page${options.includeCoverPage ? ` (1 couverture + ${menuPageCount} page(s))` : ""}.
+- body { margin: 0; padding: 0; } — JAMAIS de padding sur le body.
+- ${layoutHint}
+- CHECKLIST avant de finir : (1) .menu-page a height:297mm sans min-height ✓ (2) Tout le contenu est visible sans scroll ✓ (3) Le footer/allergènes sont dans la page ✓`;
 
   const customInstruction = options.customInstructions
     ? `\n\n## Instructions personnalisées du restaurateur\n${options.customInstructions}`
@@ -357,6 +385,11 @@ ${referenceTemplate}
   // Complexity-specific design instructions
   const complexityInstructions = buildComplexityInstructions(options.complexity);
 
+  // Logo instruction
+  const logoInstruction = logoUrl
+    ? `- Logo du restaurant : Intègre le logo en haut du menu (et sur la page de couverture si présente) en utilisant EXACTEMENT ce placeholder : <img src="{{LOGO_URL}}" alt="Logo ${restaurant.name}" style="max-height:60px;max-width:160px;object-fit:contain;display:block;margin:0 auto 4mm;" />. Le logo sera injecté automatiquement.`
+    : "";
+
   return `Tu es un designer de menus de restaurant PROFESSIONNEL, expert en typographie, mise en page et design graphique. Tu crées des menus LISIBLES, ÉLÉGANTS et de qualité professionnelle. Génère un design HTML/CSS soigné et visuellement cohérent pour le menu suivant.
 
 ## Informations du restaurant (OBLIGATOIRE sur le menu)
@@ -365,6 +398,7 @@ ${restaurant.address ? `- Adresse : ${restaurant.address} — DOIT apparaître s
 ${restaurant.phone ? `- Téléphone : ${restaurant.phone} — DOIT apparaître sur le menu` : ""}
 ${restaurant.email ? `- Email : ${restaurant.email} — À inclure si possible` : ""}
 ${restaurant.website ? `- Site web : ${restaurant.website} — À inclure si possible` : ""}
+${logoInstruction}
 
 ## Menu "${menu.name}"
 ${dishList}
@@ -391,14 +425,15 @@ ${complexityInstructions}
 
 ## Règles techniques STRICTES
 1. Génère un document HTML COMPLET (<!DOCTYPE html> jusqu'à </html>) avec un bloc <style> dans le <head> ET des styles inline
-2. FORMAT A4 OBLIGATOIRE : chaque page = 1 div.menu-page avec width:210mm; height:297mm (pas min-height). body { margin:0; padding:0; }. Le HTML doit contenir EXACTEMENT ${totalPages} div.menu-page. C'est NON NÉGOCIABLE.${menuPageCount === 1 ? " TOUT le contenu du menu tient sur 1 SEULE page. Réduis les tailles si nécessaire." : ""}
-3. Utilise 2-3 polices Google Fonts complémentaires (via <link> dans le <head>). Choisis des polices PREMIUM et originales (ex: Cormorant Garamond, Playfair Display, Libre Baskerville, Josefin Sans, Montserrat, DM Serif Display, Lora, Spectral, etc.)
-4. PAS de JavaScript
+2. FORMAT A4 OBLIGATOIRE : chaque page = 1 div.menu-page avec width:210mm; height:297mm. JAMAIS min-height. body { margin:0; padding:0; }. Le HTML doit contenir EXACTEMENT ${totalPages} div.menu-page.${menuPageCount === 1 ? " TOUT le contenu tient sur 1 SEULE page. Si trop long → réduis font-size et utilise 2 colonnes." : ""}
+3. Utilise 2-3 polices Google Fonts complémentaires (via <link> dans le <head>). Choisis des polices PREMIUM (ex: Cormorant Garamond, Playfair Display, Libre Baskerville, Josefin Sans, Montserrat, DM Serif Display, Lora, Spectral, etc.)
+4. PAS de JavaScript dans ta réponse
 5. TOUS les plats doivent apparaître avec leur nom et prix. Les descriptions doivent apparaître si elles existent.
 6. Les allergènes doivent être indiqués (en légende en bas de page ou en petit à côté des plats)
-7. Le nom du restaurant, l'adresse et le téléphone DOIVENT être visibles — c'est une obligation légale
+7. Le nom du restaurant, l'adresse et le téléphone DOIVENT être visibles — obligation légale
 8. Ajoute -webkit-print-color-adjust: exact et print-color-adjust: exact sur body
 9. Le HTML doit faire minimum 150 lignes pour un design riche et détaillé
+10. INTERDIT : min-height sur .menu-page, padding sur body, contenu qui déborde de la hauteur 297mm
 
 ## Format de réponse
 Réponds UNIQUEMENT avec un objet JSON valide (pas de markdown, pas de backticks, pas de commentaires) :
@@ -480,19 +515,70 @@ export function buildBackgroundPrompt(
 }
 
 /**
- * Post-process the generated HTML to replace image placeholders with actual base64 data URIs.
- * Placeholders: {{IMG:dish name}} for food images, {{COVER_IMG}} for cover image.
+ * CSS injected into every AI-generated menu HTML to lock A4 page dimensions.
+ * Overrides any min-height / max-height the AI might have introduced.
+ */
+const A4_LOCK_CSS = `<style id="mf-a4-lock">
+.menu-page{width:210mm!important;height:297mm!important;min-height:unset!important;max-height:297mm!important;overflow:hidden!important;box-sizing:border-box!important;position:relative!important;flex-shrink:0!important;}
+</style>`;
+
+/**
+ * JS injected into every AI-generated menu HTML.
+ * Detects overflow on each .menu-page and auto-scales content via transform to fit.
+ * Marked with data-mf-scaler to prevent double injection.
+ */
+const AUTO_SCALER_SCRIPT = `<script data-mf-scaler="1">
+(function(){
+  var DONE='data-mf-scaled';
+  function fit(){
+    document.querySelectorAll('.menu-page').forEach(function(page){
+      if(page.hasAttribute(DONE))return;
+      page.setAttribute(DONE,'1');
+      var pH=page.clientHeight,cH=page.scrollHeight;
+      if(!pH||cH<=pH+1)return;
+      var scale=pH/cH;
+      var wrap=document.createElement('div');
+      wrap.style.cssText='transform-origin:top left;width:'+(100/scale).toFixed(3)+'%;display:block;';
+      while(page.firstChild)wrap.appendChild(page.firstChild);
+      page.appendChild(wrap);
+      wrap.style.transform='scale('+scale.toFixed(6)+')';
+    });
+  }
+  // Wait for fonts before measuring — DOMContentLoaded fires before fonts are ready,
+  // which causes wrong scale calculations when Google Fonts are used.
+  function run(){
+    if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}
+    else{fit();}
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}
+  else{run();}
+})();
+<\/script>`;
+
+/**
+ * Post-process the generated HTML to replace image placeholders with actual base64 data URIs,
+ * and inject the A4 lock CSS + auto-scaler JS.
+ * Placeholders:
+ *   {{IMG:dish name}}  — food images
+ *   {{COVER_IMG}}      — cover background image
+ *   {{LOGO_URL}}       — restaurant logo
  */
 export function injectImagesIntoHtml(
   html: string,
   images?: GeneratedImage[],
-  coverImageDataUri?: string
+  coverImageDataUri?: string,
+  logoUrl?: string
 ): string {
   let result = html;
 
   // Replace cover image placeholder
   if (coverImageDataUri) {
     result = result.replace(/\{\{COVER_IMG\}\}/g, coverImageDataUri);
+  }
+
+  // Replace logo placeholder
+  if (logoUrl) {
+    result = result.replace(/\{\{LOGO_URL\}\}/g, logoUrl);
   }
 
   // Replace food image placeholders
@@ -503,6 +589,16 @@ export function injectImagesIntoHtml(
       const regex = new RegExp(`\\{\\{IMG:${escapedName}\\}\\}`, "g");
       result = result.replace(regex, img.dataUri);
     }
+  }
+
+  // Inject A4 lock CSS into <head>
+  if (!result.includes('id="mf-a4-lock"')) {
+    result = result.replace("</head>", `${A4_LOCK_CSS}</head>`);
+  }
+
+  // Inject auto-scaler JS before </body>
+  if (!result.includes('data-mf-scaler')) {
+    result = result.replace("</body>", `${AUTO_SCALER_SCRIPT}</body>`);
   }
 
   return result;
@@ -548,10 +644,11 @@ export async function generateMenuDesign(
   data: TemplateData,
   options?: AIDesignOptions,
   images?: GeneratedImage[],
-  coverImageDataUri?: string
+  coverImageDataUri?: string,
+  logoUrl?: string
 ): Promise<Omit<AIDesignResult, "backgroundUrl"> & { cuisineStyle: string }> {
   const client = getAnthropicClient();
-  const prompt = buildDesignPrompt(data, options, images, coverImageDataUri);
+  const prompt = buildDesignPrompt(data, options, images, coverImageDataUri, logoUrl);
 
   const maxTokens = options?.complexity === "luxe" ? 16000 : options?.complexity === "simple" ? 6000 : 12000;
 
@@ -598,7 +695,7 @@ export async function generateMenuDesign(
   }
 
   // Post-process: inject actual base64 images into placeholders
-  const finalHtml = injectImagesIntoHtml(parsed.html, images, coverImageDataUri);
+  const finalHtml = injectImagesIntoHtml(parsed.html, images, coverImageDataUri, logoUrl);
 
   // Validate generated HTML
   const validation = validateGeneratedHtml(finalHtml, data.restaurant.name);

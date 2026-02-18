@@ -130,30 +130,29 @@ export default function RestaurantSettingsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-white">
+      <header className="sticky top-0 z-30 border-b border-border bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-3xl items-center gap-4 px-4">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 text-sm text-muted hover:text-foreground"
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground"
           >
             <ArrowLeft size={16} />
-            Retour
+            Tableau de bord
           </Link>
-          <h1 className="font-[family-name:var(--font-playfair)] text-xl font-bold text-foreground">
-            Mon restaurant
-          </h1>
+          <div className="h-4 w-px bg-border" />
+          <h1 className="text-sm font-semibold text-foreground">Mon restaurant</h1>
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-8">
         {error && (
-          <div className="mb-6 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <div className="mb-6 flex items-center gap-2 rounded-xl bg-error-light px-4 py-3 text-sm text-error">
             {error}
           </div>
         )}
         {success && (
-          <div className="mb-6 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-            {success}
+          <div className="mb-6 flex items-center gap-2 rounded-xl bg-success-light px-4 py-3 text-sm text-success">
+            ✓ {success}
           </div>
         )}
 
