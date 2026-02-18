@@ -1,5 +1,20 @@
 # Journal de bord — Menufique
 
+## 2026-02-18 — Stripe billing flow complet
+
+### Décisions
+- **Route checkout** : `POST /api/stripe/checkout` → prix passé en body, userId en metadata
+- **Route portal** : `POST /api/stripe/portal` → nécessite `stripeCustomerId` en DB
+- **Page billing** : Server Component wrapper → passe priceIds en props au Client Component (évite NEXT_PUBLIC_ vars)
+- **Portal activé** : configuration `bpc_1T2HRDIOk6jtjzUvnmRnBcpm` (mode test)
+- **BMAD** : processus SM/Dev/Architect/PO/DevOps appliqué à partir de maintenant
+
+### État
+- ✅ Flow complet : Dashboard → Passer Pro → Stripe Checkout → Webhook → plan mis à jour
+- ✅ Bouton "Passer Pro" dans header dashboard (FREE users)
+- ✅ Portail client Stripe activé (gérer abonnement)
+- Toutes les clés Stripe test configurées en local + Vercel
+
 ## 2026-02-18 — Epics 13-16 implémentés
 
 ### Décisions

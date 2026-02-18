@@ -87,8 +87,7 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions): Promis
   }
 
   try {
-    const result = await getResend().emails.send({ from: FROM, to, subject, html });
-    console.log("[email] Envoyé avec succès:", result);
+    await getResend().emails.send({ from: FROM, to, subject, html });
   } catch (err) {
     // Log but never throw — emails are non-critical
     console.error("[email] Erreur lors de l'envoi:", JSON.stringify(err, null, 2));

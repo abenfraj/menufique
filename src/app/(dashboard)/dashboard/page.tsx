@@ -9,6 +9,7 @@ import {
   Pencil,
   Settings,
   Store,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
@@ -20,7 +21,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [menus, restaurant] = await Promise.all([
+  const [menus, restaurant, user] = await Promise.all([
     prisma.menu.findMany({
       where: { userId: session.user.id },
       include: {
@@ -33,6 +34,10 @@ export default async function DashboardPage() {
     }),
     prisma.restaurant.findUnique({
       where: { userId: session.user.id },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { plan: true },
     }),
   ]);
 
@@ -51,6 +56,24 @@ export default async function DashboardPage() {
             Menufique
           </h1>
           <div className="flex items-center gap-4">
+            {user?.plan !== "PRO" && (
+              <Link
+                href="/dashboard/billing"
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
+              >
+                <Crown size={14} />
+                <span>Passer Pro</span>
+              </Link>
+            )}
+            {user?.plan === "PRO" && (
+              <Link
+                href="/dashboard/billing"
+                className="flex items-center gap-1.5 text-sm font-medium text-primary"
+              >
+                <Crown size={14} />
+                <span className="hidden sm:inline">Pro</span>
+              </Link>
+            )}
             <Link
               href="/settings/restaurant"
               className="flex items-center gap-1.5 text-sm text-muted hover:text-foreground"

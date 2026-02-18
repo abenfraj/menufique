@@ -29,7 +29,9 @@
       "WebFetch(domain:buildmode.dev)",
       "WebFetch(domain:solodev.app)",
       "WebFetch(domain:deepwiki.com)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "defaultMode": "acceptEdits"
   }
