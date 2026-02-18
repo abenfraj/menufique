@@ -1,0 +1,138 @@
+export const elegantTemplate: string = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #FDF8F0; }
+  .menu-page { width: 210mm; height: 297mm; padding: 12mm; box-sizing: border-box; overflow: hidden; background: #FDF8F0; position: relative; }
+  .header { text-align: center; padding-bottom: 5mm; border-bottom: 0.5px solid #C9A96E; margin-bottom: 4mm; }
+  .restaurant-name { font-family: 'Cormorant Garamond', serif; font-size: 30pt; font-weight: 300; letter-spacing: 6px; color: #2C1F14; text-transform: uppercase; margin: 0 0 2px; }
+  .restaurant-subtitle { font-family: 'Montserrat', sans-serif; font-size: 6.5pt; letter-spacing: 5px; text-transform: uppercase; color: #C9A96E; margin: 0; }
+  .restaurant-address { font-family: 'Montserrat', sans-serif; font-size: 7pt; color: #7A6A5A; margin: 3px 0 0; letter-spacing: 1px; }
+  .ornament { text-align: center; color: #C9A96E; font-size: 14pt; letter-spacing: 8px; margin: 3mm 0; line-height: 1; }
+  .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .category { margin-bottom: 4mm; }
+  .category-title { font-family: 'Cormorant Garamond', serif; font-size: 12pt; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #2C1F14; border-bottom: 0.5px solid #C9A96E; padding-bottom: 1.5mm; margin-bottom: 2.5mm; }
+  .dish { margin-bottom: 2.5mm; }
+  .dish-row { display: flex; align-items: flex-end; gap: 3px; }
+  .dish-name { font-family: 'Cormorant Garamond', serif; font-size: 10.5pt; color: #2C1F14; flex-shrink: 0; max-width: 68%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dish-dots { flex: 1; border-bottom: 1px dotted #C9A96E; margin-bottom: 3px; min-width: 8px; }
+  .dish-price { font-family: 'Montserrat', sans-serif; font-size: 9.5pt; font-weight: 400; color: #C9A96E; flex-shrink: 0; white-space: nowrap; }
+  .dish-desc { font-family: 'Cormorant Garamond', serif; font-size: 8pt; font-style: italic; color: #7A6A5A; margin-top: 0.5mm; display: block; }
+  .allergens { font-family: 'Montserrat', sans-serif; font-size: 5.5pt; color: #A08878; text-align: center; margin-top: 2mm; letter-spacing: 0.5px; }
+  .footer { position: absolute; bottom: 10mm; left: 12mm; right: 12mm; border-top: 0.5px solid #C9A96E; padding-top: 2.5mm; text-align: center; }
+  .footer p { font-family: 'Montserrat', sans-serif; font-size: 6.5pt; letter-spacing: 2px; color: #7A6A5A; margin: 0; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="menu-page">
+  <header class="header">
+    <h1 class="restaurant-name">Le Jardin</h1>
+    <p class="restaurant-subtitle">Cuisine gastronomique française</p>
+    <p class="restaurant-address">12 Rue des Lilas · 75008 Paris · 01 42 36 89 20</p>
+  </header>
+  <div class="ornament">— ✦ —</div>
+  <div class="columns">
+    <div>
+      <section class="category">
+        <h2 class="category-title">Entrées</h2>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Soupe à l'oignon</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">9 €</span>
+          </div>
+          <span class="dish-desc">Gratinée, croûton au gruyère</span>
+        </div>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Carpaccio de bœuf</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">14 €</span>
+          </div>
+          <span class="dish-desc">Roquette, parmesan, huile de truffe</span>
+        </div>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Feuilleté d'escargots</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">13 €</span>
+          </div>
+          <span class="dish-desc">Beurre persillé, ail confit</span>
+        </div>
+      </section>
+      <section class="category">
+        <h2 class="category-title">Desserts</h2>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Tarte Tatin</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">10 €</span>
+          </div>
+          <span class="dish-desc">Crème fraîche, caramel beurre salé</span>
+        </div>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Crème brûlée</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">9 €</span>
+          </div>
+          <span class="dish-desc">Vanille Bourbon, cassonade</span>
+        </div>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Fondant chocolat</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">11 €</span>
+          </div>
+          <span class="dish-desc">Cœur coulant, glace vanille</span>
+        </div>
+      </section>
+    </div>
+    <div>
+      <section class="category">
+        <h2 class="category-title">Plats principaux</h2>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Filet de bar</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">24 €</span>
+          </div>
+          <span class="dish-desc">Légumes du marché, beurre blanc</span>
+        </div>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Canard à l'orange</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">26 €</span>
+          </div>
+          <span class="dish-desc">Magret, jus d'agrumes, pommes sarladaises</span>
+        </div>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Entrecôte grillée</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">28 €</span>
+          </div>
+          <span class="dish-desc">Sauce béarnaise, frites maison</span>
+        </div>
+        <div class="dish">
+          <div class="dish-row">
+            <span class="dish-name">Risotto aux cèpes</span>
+            <span class="dish-dots"></span>
+            <span class="dish-price">22 €</span>
+          </div>
+          <span class="dish-desc">Parmesan affiné, huile de truffe</span>
+        </div>
+      </section>
+    </div>
+  </div>
+  <p class="allergens">Allergènes : G = Gluten · L = Lait · O = Œuf · P = Poisson · C = Crustacés — Informations disponibles sur demande</p>
+  <footer class="footer">
+    <p>Le Jardin · 12 Rue des Lilas, Paris 8e · 01 42 36 89 20</p>
+  </footer>
+</div>
+</body>
+</html>`;

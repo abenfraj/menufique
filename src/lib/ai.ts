@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import sharp from "sharp";
 import { TemplateData } from "@/templates/types";
+import { getTemplateByStyle } from "@/lib/ai-prompt-templates";
 
 export type ImageMode = "none" | "emojis" | "ai-photos";
 
@@ -336,6 +337,23 @@ ${fitInstruction}
     ? `\n\n## Instructions personnalisées du restaurateur\n${options.customInstructions}`
     : "";
 
+  // Reference template injection
+  const referenceTemplate = getTemplateByStyle(options.style, options.complexity);
+  const templateInstruction = `
+
+## TEMPLATE DE RÉFÉRENCE (BASE OBLIGATOIRE)
+Voici un template HTML complet qui définit la STRUCTURE et le STYLE de référence pour ce type de menu.
+Tu DOIS utiliser cette structure comme point de départ et l'adapter :
+- Remplace le contenu fictif (restaurant "Le Jardin") par le vrai contenu du menu
+- Adapte les couleurs, polices, ornements selon les directives de style ci-dessus
+- Conserve la structure A4 exacte (.menu-page width:210mm, height:297mm, overflow:hidden)
+- Améliore le design si possible, mais ne casse pas la structure de base
+- Respecte le format de réponse JSON demandé ci-dessous
+
+\`\`\`html
+${referenceTemplate}
+\`\`\``;
+
   // Complexity-specific design instructions
   const complexityInstructions = buildComplexityInstructions(options.complexity);
 
@@ -358,6 +376,7 @@ ${dishList}
 ${coverInstruction}
 ${pageLayoutInstruction}
 ${customInstruction}
+${templateInstruction}
 
 ## Niveau de complexité : ${AI_COMPLEXITY_LABELS[options.complexity]}
 ${complexityInstructions}
