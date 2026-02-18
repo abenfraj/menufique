@@ -36,8 +36,8 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Vercel-specific: externalize Puppeteer from bundling
-  serverExternalPackages: ["puppeteer-core", "puppeteer"],
+  // Externalize heavy packages from bundling (required for Vercel)
+  serverExternalPackages: ["puppeteer-core", "puppeteer", "@sparticuz/chromium"],
 
   images: {
     remotePatterns: [

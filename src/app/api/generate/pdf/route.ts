@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { generateMenuPdf } from "@/lib/pdf";
 
+// Allow up to 60s for PDF generation on Vercel
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const session = await auth();

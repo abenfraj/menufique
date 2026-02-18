@@ -1,7 +1,26 @@
-import puppeteer from "puppeteer";
 import { prisma } from "@/lib/db";
 import { formatPrice } from "@/lib/utils";
 import { TemplateData } from "@/templates/types";
+
+async function launchBrowser() {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction) {
+    const chromium = await import("@sparticuz/chromium");
+    const puppeteerCore = await import("puppeteer-core");
+    return puppeteerCore.default.launch({
+      args: chromium.default.args,
+      executablePath: await chromium.default.executablePath(),
+      headless: true,
+    });
+  } else {
+    const puppeteer = await import("puppeteer");
+    return puppeteer.default.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+  }
+}
 
 export async function generateMenuPdf(menuId: string): Promise<Buffer> {
   // 1. Load menu data
@@ -63,10 +82,7 @@ export async function generateMenuPdf(menuId: string): Promise<Buffer> {
   const html = buildPdfHtml(templateData, menu.templateId);
 
   // 3. Generate PDF with Puppeteer
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  const browser = await launchBrowser();
 
   try {
     const page = await browser.newPage();
