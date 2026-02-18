@@ -125,13 +125,24 @@ export default async function DashboardPage() {
                 : "Gérez vos menus de restaurant en un seul endroit."}
             </p>
           </div>
-          <Link
-            href="/menus/new"
-            className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 font-medium text-white transition-colors hover:bg-primary-hover"
-          >
-            <Plus size={20} />
-            <span className="hidden sm:inline">Nouveau menu</span>
-          </Link>
+          {user?.plan === "FREE" && menus.length >= 1 ? (
+            <Link
+              href="/dashboard/billing"
+              className="inline-flex h-11 items-center gap-2 rounded-lg border border-primary px-6 font-medium text-primary transition-colors hover:bg-primary/5"
+              title="Le plan gratuit est limité à 1 menu"
+            >
+              <Crown size={18} />
+              <span className="hidden sm:inline">Passer Pro</span>
+            </Link>
+          ) : (
+            <Link
+              href="/menus/new"
+              className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 font-medium text-white transition-colors hover:bg-primary-hover"
+            >
+              <Plus size={20} />
+              <span className="hidden sm:inline">Nouveau menu</span>
+            </Link>
+          )}
         </div>
 
         {menus.length === 0 ? (

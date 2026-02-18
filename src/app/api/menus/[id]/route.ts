@@ -93,6 +93,22 @@ export async function PUT(
     }
 
     const body = await request.json();
+
+    // Check Pro template access
+    const PRO_TEMPLATES = ["bistrot", "ai-custom"];
+    if (body.templateId && PRO_TEMPLATES.includes(body.templateId)) {
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { plan: true },
+      });
+      if (user?.plan !== "PRO") {
+        return NextResponse.json(
+          { error: "Ce template est réservé au plan Pro. Passez à Pro pour l'utiliser.", upgrade: true },
+          { status: 403 }
+        );
+      }
+    }
+
     const parsed = menuSchema.partial().safeParse(body);
 
     if (!parsed.success) {

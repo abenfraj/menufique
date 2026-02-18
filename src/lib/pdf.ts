@@ -131,6 +131,11 @@ function buildAiCustomPdfHtml(data: TemplateData): string {
       );
     }
 
+    // Inject watermark for FREE plan
+    if (data.branding.showWatermark) {
+      html = html.replace("</body>", `${watermarkHtml()}</body>`);
+    }
+
     return html;
   }
 
@@ -163,6 +168,17 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function watermarkHtml(): string {
+  const text = "MENUFIQUE · PLAN GRATUIT";
+  const rows = Array.from({ length: 8 }, (_, i) =>
+    `<div style="white-space:nowrap;transform:rotate(-35deg);font-size:18pt;font-weight:800;letter-spacing:4px;color:rgba(0,0,0,0.07);font-family:sans-serif;margin-bottom:60px;">${Array(4).fill(text).join("   ")}</div>`
+  ).join("");
+
+  return `<div style="position:fixed;top:-100px;left:-100px;right:-100px;bottom:-100px;z-index:9999;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+    ${rows}
+  </div>`;
 }
 
 function pdfHead(fontBody: string, fontHeading: string, extraStyles: string): string {
@@ -267,7 +283,7 @@ function buildClassicPdfHtml(data: TemplateData): string {
     <div style="height:1px;width:40px;background:${p};opacity:0.3;"></div>
   </div>
 
-  ${branding.showWatermark ? `<p style="text-align:center;font-size:7pt;opacity:0.2;margin-top:12px;">Créé avec Menufique</p>` : ""}
+  ${branding.showWatermark ? watermarkHtml() : ""}
 </body>
 </html>`;
 }
@@ -326,7 +342,7 @@ function buildMinimalPdfHtml(data: TemplateData): string {
   ${categoriesHtml}
 
   ${usedAllergens.length > 0 ? `<p style="margin-top:32px;font-size:7pt;opacity:0.25;line-height:1.6;">Allergènes : ${usedAllergens.map((a) => allergenLabel(a)).join(", ")}</p>` : ""}
-  ${branding.showWatermark ? `<p style="font-size:7pt;opacity:0.15;margin-top:16px;">Créé avec Menufique</p>` : ""}
+  ${branding.showWatermark ? watermarkHtml() : ""}
 </body>
 </html>`;
 }
@@ -406,7 +422,7 @@ function buildBistrotPdfHtml(data: TemplateData): string {
 
     ${restaurant.phone ? `<p style="text-align:center;font-size:8pt;color:${subtleColor};margin-top:16px;letter-spacing:1px;">Réservations : ${escapeHtml(restaurant.phone)}</p>` : ""}
 
-    ${branding.showWatermark ? `<p style="text-align:center;font-size:7pt;opacity:0.15;margin-top:12px;color:${textColor};">Créé avec Menufique</p>` : ""}
+    ${branding.showWatermark ? watermarkHtml() : ""}
   </div>
 </body>
 </html>`;

@@ -302,16 +302,29 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
   async function handleChangeTemplate(templateId: string) {
     try {
-      await fetch(`/api/menus/${menuId}`, {
+      const res = await fetch(`/api/menus/${menuId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ templateId }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.upgrade) {
+          setAiError(null);
+          setShowTemplateSelector(false);
+          // Redirect to billing
+          window.location.href = "/dashboard/billing";
+          return;
+        }
+        setAiError(data.error ?? "Erreur lors du changement de template");
+        setShowTemplateSelector(false);
+        return;
+      }
       fetchMenu();
       setShowTemplateSelector(false);
       setPdfKey((k) => k + 1);
     } catch {
-      // Error
+      setAiError("Erreur de connexion. Veuillez réessayer.");
     }
   }
 
