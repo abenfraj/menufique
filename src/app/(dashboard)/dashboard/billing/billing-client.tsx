@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, Zap, Crown } from "lucide-react";
+import { Check, Zap, Crown, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { Suspense } from "react";
 
 const PRO_FEATURES = [
@@ -76,6 +77,13 @@ function BillingContent({ plan, hasCustomer, priceMonthly, priceYearly }: Props)
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-8">
+        <Link
+          href="/dashboard"
+          className="mb-4 flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
+        >
+          <ArrowLeft size={16} />
+          Retour au dashboard
+        </Link>
         <h1 className="text-2xl font-bold text-foreground">Facturation</h1>
         <p className="mt-1 text-muted">Gérez votre abonnement Menufique.</p>
       </div>
