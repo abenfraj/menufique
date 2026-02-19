@@ -507,30 +507,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
           {/* Right: actions */}
           <div className="flex shrink-0 items-center gap-1.5">
-            {/* AI Button — Pro only */}
-            {isPro && (
-              <button
-                onClick={() => { setShowAIPanel(!showAIPanel); setShowTemplateSelector(false); }}
-                disabled={isGeneratingAI}
-                className={`group flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-all disabled:opacity-50 ${
-                  showAIPanel
-                    ? "bg-primary text-white shadow-md shadow-primary/25"
-                    : "border border-primary/25 bg-gradient-to-r from-primary/5 to-orange-50 text-primary hover:border-primary/50 hover:shadow-sm"
-                }`}
-              >
-                {isGeneratingAI
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <Sparkles size={13} className="transition-transform group-hover:scale-110" />
-                }
-                <span className="hidden sm:inline">
-                  {isGeneratingAI ? "Génération..." : menu.templateId === "ai-custom" ? "Régénérer" : "IA Design"}
-                </span>
-              </button>
-            )}
-
-            {/* Divider */}
-            <div className="h-5 w-px bg-border" />
-
             {/* Template */}
             <button
               onClick={() => { setShowTemplateSelector(!showTemplateSelector); setShowAIPanel(false); }}
@@ -620,81 +596,88 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
         </div>
       )}
 
-      {/* ══════════════════ AI Panel ══════════════════ */}
+      {/* ══════════════════ AI Right Drawer ══════════════════ */}
       {showAIPanel && (
-        <div className="animate-slide-down border-b border-primary/15 bg-gradient-to-br from-orange-50/80 via-white to-amber-50/50">
-          <div className="mx-auto max-w-[1600px] px-3 py-3">
-            {/* Panel header + tabs */}
-            <div className="mb-3 flex items-center justify-between">
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]"
+            onClick={() => setShowAIPanel(false)}
+          />
+
+          {/* Drawer */}
+          <div className="animate-slide-in-right fixed bottom-0 right-0 top-0 z-50 flex w-full flex-col bg-white shadow-2xl sm:w-[440px]">
+            {/* Drawer header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-orange-500 shadow-sm">
-                    <Wand2 size={14} className="text-white" />
-                  </div>
-                  <h3 className="text-sm font-bold text-foreground">
-                    Design IA
-                  </h3>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-orange-500 shadow-md shadow-primary/25">
+                  <Wand2 size={18} className="text-white" />
                 </div>
-                {/* Tabs */}
-                <div className="flex rounded-lg border border-border bg-white/80 p-0.5">
-                  <button
-                    onClick={() => setAiTab("options")}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                      aiTab === "options"
-                        ? "bg-primary text-white shadow-sm"
-                        : "text-muted hover:text-foreground"
-                    }`}
-                  >
-                    <Sparkles size={11} className="mr-1 inline" />
-                    Nouveau design
-                  </button>
-                  <button
-                    onClick={() => setAiTab("import")}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                      aiTab === "import"
-                        ? "bg-primary text-white shadow-sm"
-                        : "text-muted hover:text-foreground"
-                    }`}
-                  >
-                    <Upload size={11} className="mr-1 inline" />
-                    Importer un menu
-                  </button>
+                <div>
+                  <h2 className="text-base font-bold text-foreground">Design IA</h2>
+                  <p className="text-xs text-muted">Design unique pour votre restaurant</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowAIPanel(false)}
-                className="rounded-lg p-1.5 text-muted transition-colors hover:bg-white hover:text-foreground"
+                className="rounded-lg p-2 text-muted transition-colors hover:bg-surface hover:text-foreground"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* ── Tab: Options ── */}
-            {aiTab === "options" && (
-              <div className="animate-fade-in">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            {/* Tabs */}
+            <div className="flex shrink-0 border-b border-border">
+              <button
+                onClick={() => setAiTab("options")}
+                className={`flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+                  aiTab === "options"
+                    ? "border-b-2 border-primary text-primary"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Sparkles size={14} />
+                Nouveau design
+              </button>
+              <button
+                onClick={() => setAiTab("import")}
+                className={`flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+                  aiTab === "import"
+                    ? "border-b-2 border-primary text-primary"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Upload size={14} />
+                Importer un menu
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto">
+
+              {/* ── Tab: Options ── */}
+              {aiTab === "options" && (
+                <div className="space-y-5 p-5">
                   {/* Complexity */}
                   <div>
-                    <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                       <Sparkles size={12} />
-                      Niveau
+                      Niveau de détail
                     </label>
-                    <div className="flex flex-col gap-1">
+                    <div className="grid grid-cols-3 gap-2">
                       {COMPLEXITY_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => setAiComplexity(opt.value)}
-                          className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-all ${
+                          className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
                             aiComplexity === opt.value
-                              ? "border-primary bg-white text-foreground shadow-sm shadow-primary/10"
-                              : "border-transparent bg-white/60 text-muted hover:border-border hover:bg-white"
+                              ? "border-primary bg-primary/5 text-primary shadow-sm"
+                              : "border-border bg-white text-muted hover:border-primary/40"
                           }`}
                         >
-                          <span className="text-base leading-none">{opt.icon}</span>
-                          <div>
-                            <p className={`text-xs font-medium ${aiComplexity === opt.value ? "text-foreground" : "text-muted"}`}>{opt.label}</p>
-                            <p className="text-[10px] text-muted">{opt.desc}</p>
-                          </div>
+                          <span className="text-xl leading-none">{opt.icon}</span>
+                          <p className="text-xs font-semibold">{opt.label}</p>
+                          <p className="text-[10px] leading-tight text-muted">{opt.desc}</p>
                         </button>
                       ))}
                     </div>
@@ -702,23 +685,24 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
                   {/* Style */}
                   <div>
-                    <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                       <Paintbrush size={12} />
                       Style
                     </label>
-                    <div className="grid grid-cols-3 gap-1">
+                    <div className="grid grid-cols-3 gap-2">
                       {STYLE_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => setAiStyle(opt.value)}
-                          className={`group rounded-lg border p-1.5 text-center transition-all ${
+                          className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
                             aiStyle === opt.value
-                              ? "border-primary bg-white text-primary shadow-sm shadow-primary/10"
-                              : "border-transparent bg-white/60 text-muted hover:border-border hover:bg-white hover:shadow-sm"
+                              ? "border-primary bg-primary/5 text-primary shadow-sm"
+                              : "border-border bg-white text-muted hover:border-primary/40"
                           }`}
                         >
-                          <span className="block text-sm leading-none">{opt.icon}</span>
-                          <span className="mt-0.5 block text-[10px] font-medium">{opt.label}</span>
+                          <span className="text-xl leading-none">{opt.icon}</span>
+                          <p className="text-xs font-semibold">{opt.label}</p>
+                          <p className="text-[10px] text-muted">{opt.desc}</p>
                         </button>
                       ))}
                     </div>
@@ -726,113 +710,112 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
                   {/* Colors */}
                   <div>
-                    <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                       <Palette size={12} />
                       Couleurs
                     </label>
-                    <div className="flex flex-col gap-1">
+                    <div className="grid grid-cols-2 gap-2">
                       {COLOR_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => setAiColor(opt.value)}
-                          className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all ${
+                          className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all ${
                             aiColor === opt.value
-                              ? "border-primary bg-white text-foreground shadow-sm shadow-primary/10"
-                              : "border-transparent bg-white/60 text-muted hover:border-border hover:bg-white"
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border bg-white hover:border-primary/40"
                           }`}
                         >
-                          <span className="flex gap-0.5">
+                          <div className="flex gap-1">
                             {opt.colors.map((c) => (
                               <span
                                 key={c}
-                                className="inline-block h-3.5 w-3.5 rounded-full shadow-sm"
+                                className="h-4 w-4 rounded-full shadow-sm"
                                 style={{ backgroundColor: c }}
                               />
                             ))}
+                          </div>
+                          <span className={`text-sm font-medium ${aiColor === opt.value ? "text-foreground" : "text-muted"}`}>
+                            {opt.label}
                           </span>
-                          <span className="text-xs font-medium">{opt.label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Images — only Typographic and Emojis */}
+                  {/* Images & Cover */}
                   <div>
-                    <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                       <Type size={12} />
-                      Images
+                      Images &amp; couverture
                     </label>
-                    <div className="flex flex-col gap-1">
+                    <div className="space-y-2">
                       <button
                         onClick={() => setAiImageMode("none")}
-                        className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-all ${
+                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
                           aiImageMode === "none"
-                            ? "border-primary bg-white shadow-sm shadow-primary/10"
-                            : "border-transparent bg-white/60 hover:border-border hover:bg-white"
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-white hover:border-primary/40"
                         }`}
                       >
-                        <Type size={14} className={aiImageMode === "none" ? "text-primary" : "text-muted"} />
+                        <Type size={16} className={aiImageMode === "none" ? "text-primary" : "text-muted"} />
                         <div>
-                          <p className={`text-xs font-medium ${aiImageMode === "none" ? "text-foreground" : "text-muted"}`}>Typographique</p>
-                          <p className="text-[10px] text-muted">Polices et couleurs</p>
+                          <p className={`text-sm font-medium ${aiImageMode === "none" ? "text-foreground" : "text-muted"}`}>Typographique</p>
+                          <p className="text-xs text-muted">Polices et couleurs uniquement</p>
                         </div>
                       </button>
                       <button
                         onClick={() => setAiImageMode("emojis")}
-                        className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-all ${
+                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
                           aiImageMode === "emojis"
-                            ? "border-primary bg-white shadow-sm shadow-primary/10"
-                            : "border-transparent bg-white/60 hover:border-border hover:bg-white"
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-white hover:border-primary/40"
                         }`}
                       >
-                        <span className={`text-sm ${aiImageMode === "emojis" ? "" : "opacity-50"}`}>🍽️</span>
+                        <span className={`text-lg ${aiImageMode === "emojis" ? "" : "opacity-40"}`}>🍽️</span>
                         <div>
-                          <p className={`text-xs font-medium ${aiImageMode === "emojis" ? "text-foreground" : "text-muted"}`}>Emojis</p>
-                          <p className="text-[10px] text-muted">Icônes décoratives</p>
+                          <p className={`text-sm font-medium ${aiImageMode === "emojis" ? "text-foreground" : "text-muted"}`}>Emojis</p>
+                          <p className="text-xs text-muted">Icônes décoratives par plat</p>
                         </div>
                       </button>
-
-                      {/* Cover page toggle */}
                       <button
                         onClick={() => setAiIncludeCoverPage(!aiIncludeCoverPage)}
-                        className={`mt-1 flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-all ${
+                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
                           aiIncludeCoverPage
-                            ? "border-primary bg-white shadow-sm shadow-primary/10"
-                            : "border-transparent bg-white/60 hover:border-border hover:bg-white"
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-white hover:border-primary/40"
                         }`}
                       >
-                        <FileImage size={14} className={aiIncludeCoverPage ? "text-primary" : "text-muted"} />
-                        <div>
-                          <p className={`text-xs font-medium ${aiIncludeCoverPage ? "text-foreground" : "text-muted"}`}>Page de couverture</p>
-                          <p className="text-[10px] text-muted">Image hero + nom</p>
+                        <FileImage size={16} className={aiIncludeCoverPage ? "text-primary" : "text-muted"} />
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${aiIncludeCoverPage ? "text-foreground" : "text-muted"}`}>Page de couverture</p>
+                          <p className="text-xs text-muted">Image hero + nom du restaurant</p>
+                        </div>
+                        <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all ${aiIncludeCoverPage ? "border-primary bg-primary" : "border-border"}`}>
+                          {aiIncludeCoverPage && <span className="text-[9px] font-bold text-white">✓</span>}
                         </div>
                       </button>
-
-                      <p className="mt-1 text-[10px] text-muted/70">
-                        Ajoutez des photos par plat via le bouton &quot;Chercher une photo&quot; dans l&apos;éditeur.
-                      </p>
                     </div>
                   </div>
 
                   {/* Pages */}
                   <div>
-                    <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                       <FileText size={12} />
-                      Pages
+                      Nombre de pages
                     </label>
-                    <div className="grid grid-cols-2 gap-1">
+                    <div className="grid grid-cols-4 gap-2">
                       {([1, 2, 3, 4] as const).map((n) => (
                         <button
                           key={n}
                           onClick={() => setAiMenuPageCount(n)}
-                          className={`rounded-lg border px-2.5 py-2 text-center transition-all ${
+                          className={`flex flex-col items-center rounded-xl border py-3 transition-all ${
                             aiMenuPageCount === n
-                              ? "border-primary bg-white text-primary shadow-sm shadow-primary/10"
-                              : "border-transparent bg-white/60 text-muted hover:border-border hover:bg-white"
+                              ? "border-primary bg-primary/5 text-primary shadow-sm"
+                              : "border-border bg-white text-muted hover:border-primary/40"
                           }`}
                         >
-                          <span className="block text-sm font-medium">{n}</span>
-                          <span className="block text-[10px] text-muted">page{n > 1 ? "s" : ""}</span>
+                          <span className="text-lg font-bold">{n}</span>
+                          <span className="text-[10px]">page{n > 1 ? "s" : ""}</span>
                         </button>
                       ))}
                     </div>
@@ -840,9 +823,9 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
                   {/* Instructions */}
                   <div>
-                    <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
                       <MessageSquare size={12} />
-                      Instructions
+                      Instructions personnalisées
                     </label>
                     <textarea
                       value={aiCustomInstructions}
@@ -850,166 +833,136 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                       placeholder="Ex: style art déco avec du doré, bordures ornées..."
                       maxLength={500}
                       rows={4}
-                      className="w-full resize-none rounded-lg border border-border bg-white px-2.5 py-2 text-xs text-foreground placeholder:text-muted/40 transition-colors focus:border-primary focus:outline-none"
+                      className="w-full resize-none rounded-xl border border-border bg-white px-3 py-2.5 text-sm text-foreground placeholder:text-muted/40 focus:border-primary focus:outline-none"
                     />
-                    <p className="mt-0.5 text-right text-[10px] text-muted">
-                      {aiCustomInstructions.length}/500
-                    </p>
+                    <p className="mt-1 text-right text-xs text-muted">{aiCustomInstructions.length}/500</p>
                   </div>
+
+                  {/* Extracted text indicator */}
+                  {extractedText && (
+                    <div className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2.5 text-sm text-green-700">
+                      <CheckCircle2 size={15} />
+                      Menu importé joint aux instructions.
+                    </div>
+                  )}
                 </div>
+              )}
 
-                {/* Extracted text indicator */}
-                {extractedText && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-1.5 text-xs text-green-700">
-                    <CheckCircle2 size={13} />
-                    Menu importé joint aux instructions.
-                  </div>
-                )}
-
-                {/* Generate button */}
-                <div className="mt-3 flex items-center gap-3">
-                  <Button
-                    onClick={handleGenerateAI}
-                    disabled={isGeneratingAI}
-                    className="rounded-lg bg-gradient-to-r from-primary to-orange-500 px-5 shadow-md shadow-primary/20 transition-all hover:shadow-lg hover:shadow-primary/30"
-                  >
-                    {isGeneratingAI ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={15} />
-                    )}
-                    {isGeneratingAI ? "Génération en cours..." : "Générer le design"}
-                  </Button>
-                  <p className="text-xs text-muted">
-                    L&apos;IA analyse vos plats et crée un design unique en ~15 secondes.
+              {/* ── Tab: Import ── */}
+              {aiTab === "import" && (
+                <div className="space-y-4 p-5">
+                  <p className="text-sm text-muted">
+                    Importez une photo de votre ancien menu. L&apos;IA extraira le contenu et le redesignera.
                   </p>
-                </div>
-              </div>
-            )}
 
-            {/* ── Tab: Import ── */}
-            {aiTab === "import" && (
-              <div className="animate-fade-in">
-                <p className="mb-3 text-sm text-muted">
-                  Importez une photo de votre ancien menu. L&apos;IA extraira le contenu et le redesignera.
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+
+                  {importPreview ? (
+                    <div className="relative overflow-hidden rounded-xl border border-border bg-white">
+                      <img
+                        src={importPreview}
+                        alt="Aperçu du menu importé"
+                        className="max-h-[300px] w-full object-contain"
+                      />
+                      <div className="absolute right-2 top-2">
+                        <button
+                          onClick={() => { setImportFile(null); setImportPreview(null); setExtractedText(null); }}
+                          className="rounded-lg bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <div className="border-t border-border bg-gray-50 px-3 py-2">
+                        <p className="truncate text-xs text-muted">{importFile?.name}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-border bg-white px-6 py-10 transition-all hover:border-primary/40 hover:bg-primary/5"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                        <FileImage size={24} className="text-primary" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-foreground">Cliquez pour importer</p>
+                        <p className="mt-0.5 text-xs text-muted">JPG, PNG ou WebP · max 10 Mo</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {importFile && !extractedText && (
+                    <Button
+                      onClick={handleExtractMenu}
+                      disabled={isExtracting}
+                      className="w-full rounded-xl"
+                    >
+                      {isExtracting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                      {isExtracting ? "Extraction en cours..." : "Extraire le contenu"}
+                    </Button>
+                  )}
+
+                  {extractedText && (
+                    <div className="animate-scale-in">
+                      <div className="mb-2 flex items-center gap-2">
+                        <CheckCircle2 size={15} className="text-green-600" />
+                        <p className="text-sm font-semibold text-green-700">Contenu extrait</p>
+                      </div>
+                      <div className="max-h-[240px] overflow-y-auto rounded-xl border border-green-200 bg-green-50/50 p-3">
+                        <pre className="whitespace-pre-wrap text-xs text-foreground">{extractedText}</pre>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          onClick={() => setAiTab("options")}
+                          size="sm"
+                          className="rounded-xl bg-gradient-to-r from-primary to-orange-500"
+                        >
+                          <Sparkles size={13} />
+                          Redesigner avec l&apos;IA
+                        </Button>
+                        <Button
+                          onClick={() => setExtractedText(null)}
+                          size="sm"
+                          variant="ghost"
+                          className="rounded-xl"
+                        >
+                          Effacer
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer — Generate button (only on options tab) */}
+            {aiTab === "options" && (
+              <div className="shrink-0 border-t border-border bg-white p-5">
+                <Button
+                  onClick={handleGenerateAI}
+                  disabled={isGeneratingAI}
+                  className="w-full rounded-xl bg-gradient-to-r from-primary to-orange-500 py-3 text-base shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30"
+                >
+                  {isGeneratingAI ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={18} />
+                  )}
+                  {isGeneratingAI ? "Génération en cours..." : "Générer le design"}
+                </Button>
+                <p className="mt-2 text-center text-xs text-muted">
+                  L&apos;IA crée un design unique en ~15 secondes
                 </p>
-
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {/* Upload zone */}
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-
-                    {importPreview ? (
-                      <div className="relative overflow-hidden rounded-xl border border-border bg-white">
-                        <img
-                          src={importPreview}
-                          alt="Aperçu du menu importé"
-                          className="max-h-[250px] w-full object-contain"
-                        />
-                        <div className="absolute right-2 top-2 flex gap-1">
-                          <button
-                            onClick={() => {
-                              setImportFile(null);
-                              setImportPreview(null);
-                              setExtractedText(null);
-                            }}
-                            className="rounded-lg bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                        <div className="border-t border-border bg-gray-50 px-3 py-1.5">
-                          <p className="truncate text-xs text-muted">{importFile?.name}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-white/60 px-6 py-8 transition-all hover:border-primary/40 hover:bg-white"
-                      >
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                          <FileImage size={20} className="text-primary" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm font-medium text-foreground">
-                            Cliquez pour importer
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted">
-                            JPG, PNG ou WebP (max 10 Mo)
-                          </p>
-                        </div>
-                      </button>
-                    )}
-
-                    {importFile && !extractedText && (
-                      <Button
-                        onClick={handleExtractMenu}
-                        disabled={isExtracting}
-                        size="sm"
-                        className="mt-2 w-full rounded-lg"
-                      >
-                        {isExtracting ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Wand2 size={14} />
-                        )}
-                        {isExtracting ? "Extraction en cours..." : "Extraire le contenu"}
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Extracted content */}
-                  <div>
-                    {extractedText ? (
-                      <div className="animate-scale-in">
-                        <div className="mb-2 flex items-center gap-2">
-                          <CheckCircle2 size={15} className="text-green-600" />
-                          <p className="text-xs font-semibold text-green-700">Contenu extrait</p>
-                        </div>
-                        <div className="max-h-[230px] overflow-y-auto rounded-xl border border-green-200 bg-green-50/50 p-3">
-                          <pre className="whitespace-pre-wrap text-xs text-foreground">{extractedText}</pre>
-                        </div>
-                        <div className="mt-2 flex gap-2">
-                          <Button
-                            onClick={() => setAiTab("options")}
-                            size="sm"
-                            className="rounded-lg bg-gradient-to-r from-primary to-orange-500"
-                          >
-                            <Sparkles size={13} />
-                            Redesigner avec l&apos;IA
-                          </Button>
-                          <Button
-                            onClick={() => setExtractedText(null)}
-                            size="sm"
-                            variant="ghost"
-                            className="rounded-lg"
-                          >
-                            Effacer
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border bg-white/40 p-6">
-                        <div className="text-center">
-                          <Upload size={28} className="mx-auto mb-2 text-muted/30" />
-                          <p className="text-sm text-muted/60">
-                            Le contenu extrait s&apos;affichera ici
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             )}
           </div>
-        </div>
+        </>
       )}
 
       {/* ══════════════════ Generation Progress Bar ══════════════════ */}
@@ -1268,6 +1221,28 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
           )}
         </div>
       </div>
+
+      {/* ══════════════════ Floating AI button ══════════════════ */}
+      {isPro && !showAIPanel && (
+        <button
+          onClick={() => { setShowAIPanel(true); setShowTemplateSelector(false); }}
+          disabled={isGeneratingAI}
+          className="fixed bottom-6 right-6 z-30 flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-primary to-orange-500 px-5 py-3.5 text-sm font-bold text-white shadow-xl shadow-primary/30 transition-all hover:scale-105 hover:shadow-2xl hover:shadow-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isGeneratingAI ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : (
+            <Sparkles size={18} />
+          )}
+          <span>
+            {isGeneratingAI
+              ? "Génération..."
+              : menu.templateId === "ai-custom"
+              ? "Régénérer avec IA"
+              : "Générer avec IA"}
+          </span>
+        </button>
+      )}
 
       {/* Import from URL modal */}
       {showImportUrlModal && (

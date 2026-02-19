@@ -166,6 +166,11 @@ body {
   50% { box-shadow: 0 0 20px 4px rgba(255, 107, 53, 0.15); }
 }
 
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
 .animate-slide-down {
   animation: slideDown 0.25s ease-out;
 }
@@ -195,6 +200,10 @@ body {
 
 .animate-pulse-glow {
   animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Glass effect */

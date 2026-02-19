@@ -160,49 +160,43 @@ export default function NewMenuPage() {
         <div className="mb-6 grid grid-cols-2 gap-3">
           <button
             onClick={() => setMode("manual")}
-            className={`flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all ${
+            className={`flex flex-col gap-3 rounded-xl border-2 p-5 text-left transition-all ${
               mode === "manual"
                 ? "border-primary bg-primary/5"
                 : "border-border bg-white hover:border-primary/40"
             }`}
           >
             <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${
                 mode === "manual" ? "bg-primary text-white" : "bg-gray-100 text-gray-400"
               }`}
             >
-              <PenLine size={18} />
+              <PenLine size={20} />
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground">Créer manuellement</p>
-              <p className="text-xs text-muted">Saisir vos plats</p>
+              <p className="mt-0.5 text-xs text-muted">Saisir vos plats un par un</p>
             </div>
           </button>
 
           <button
             onClick={() => setMode("import")}
-            className={`flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all ${
+            className={`flex flex-col gap-3 rounded-xl border-2 p-5 text-left transition-all ${
               mode === "import"
                 ? "border-primary bg-primary/5"
                 : "border-border bg-white hover:border-primary/40"
             }`}
           >
             <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${
                 mode === "import" ? "bg-primary text-white" : "bg-gray-100 text-gray-400"
               }`}
             >
-              <Globe size={18} />
+              <Globe size={20} />
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground">Importer</p>
-              <div className="mt-1 flex items-center gap-1.5">
-                <img src="/brands/deliveroo.svg" alt="Deliveroo" className="h-3" />
-                <span className="text-gray-300">·</span>
-                <img src="/brands/ubereats.svg" alt="Uber Eats" className="h-4" />
-                <span className="text-gray-300">·</span>
-                <img src="/brands/justeat.svg" alt="Just Eat" className="h-3.5" />
-              </div>
+              <p className="mt-0.5 text-xs text-muted">Depuis Deliveroo, Uber Eats…</p>
             </div>
           </button>
         </div>
@@ -245,15 +239,26 @@ export default function NewMenuPage() {
             <CardHeader>
               <CardTitle>Importer depuis une plateforme</CardTitle>
               <CardDescription>
-                <span className="block mb-2">
-                  Collez l&apos;URL de votre restaurant pour importer vos plats automatiquement
-                </span>
-                <span className="flex items-center gap-3">
-                  <img src="/brands/deliveroo.svg" alt="Deliveroo" className="h-4" />
-                  <img src="/brands/ubereats.svg" alt="Uber Eats" className="h-5" />
-                  <img src="/brands/justeat.svg" alt="Just Eat" className="h-4" />
-                </span>
+                Collez l&apos;URL de votre restaurant pour importer vos plats automatiquement
               </CardDescription>
+
+              {/* Platform badges */}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-[#00CCBC]/20 bg-[#00CCBC]/5 px-3 py-3">
+                  <span className="text-lg font-black tracking-tight text-[#00CCBC]">deliveroo</span>
+                  <span className="text-[10px] font-medium text-[#00CCBC]/60">deliveroo.fr</span>
+                </div>
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+                  <span className="text-lg font-black tracking-tight text-gray-900">
+                    Uber <span className="text-[#06C167]">Eats</span>
+                  </span>
+                  <span className="text-[10px] font-medium text-gray-400">ubereats.com</span>
+                </div>
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-[#F36F21]/20 bg-[#F36F21]/5 px-3 py-3">
+                  <span className="text-lg font-black tracking-tight text-[#F36F21]">Just Eat</span>
+                  <span className="text-[10px] font-medium text-[#F36F21]/60">just-eat.fr</span>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-5">
               {/* URL field */}
