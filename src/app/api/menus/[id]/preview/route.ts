@@ -123,10 +123,27 @@ function buildSimplePreviewHtml(menu: {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { background: #e8eaed; min-height: 100vh; }
+    html, body { background: #e8eaed; min-height: 100vh; overflow-x: hidden; }
     body { font-family: 'Inter', sans-serif; color: #1A1A2E; display: flex; flex-direction: column; align-items: center; padding: 20px 0; gap: 20px; }
-    .menu-page { width: 210mm; min-height: 297mm; padding: 15mm; box-shadow: 0 4px 24px rgba(0,0,0,0.18); background: #FFF8F2; }
+    .menu-page { width: 210mm; min-height: 297mm; padding: 15mm; box-shadow: 0 4px 24px rgba(0,0,0,0.18); background: #FFF8F2; transform-origin: top center; }
   </style>
+  <script>
+    (function(){
+      function fit(){
+        var page=document.querySelector('.menu-page');
+        if(!page)return;
+        var vw=window.innerWidth;
+        var pw=page.offsetWidth;
+        if(pw>vw-24){
+          var s=(vw-24)/pw;
+          page.style.transform='scale('+s.toFixed(4)+')';
+          page.style.marginBottom='-'+Math.round(page.offsetHeight*(1-s))+'px';
+        }
+      }
+      function run(){if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}else{setTimeout(fit,300);}}
+      if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}else{run();}
+    })();
+  </script>
 </head>
 <body>
   <div class="menu-page">

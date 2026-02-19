@@ -161,6 +161,9 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   // URL import state
   const [showImportUrlModal, setShowImportUrlModal] = useState(false);
 
+  // Mobile tab state
+  const [mobileTab, setMobileTab] = useState<"content" | "preview">("content");
+
   // Share state
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
@@ -1069,11 +1072,37 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
         </div>
       )}
 
+      {/* ══════════════════ Mobile tab switcher ══════════════════ */}
+      <div className="flex border-b border-border bg-white lg:hidden">
+        <button
+          onClick={() => setMobileTab("content")}
+          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
+            mobileTab === "content"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted"
+          }`}
+        >
+          Contenu
+        </button>
+        <button
+          onClick={() => setMobileTab("preview")}
+          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
+            mobileTab === "preview"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted"
+          }`}
+        >
+          Aperçu
+        </button>
+      </div>
+
       {/* ══════════════════ Split layout ══════════════════ */}
-      <div className="flex h-[calc(100vh-3.5rem)]">
+      <div className="flex h-[calc(100vh-3.5rem-41px)] lg:h-[calc(100vh-3.5rem)]">
 
         {/* Left: Editor */}
-        <div className="flex w-[48%] flex-col overflow-hidden border-r border-border">
+        <div className={`flex flex-col overflow-hidden border-r border-border lg:w-[48%] ${
+          mobileTab === "content" ? "w-full" : "hidden lg:flex"
+        }`}>
           {/* Left toolbar */}
           <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4 py-2">
             <span className="text-xs font-semibold uppercase tracking-widest text-muted">
@@ -1188,7 +1217,9 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
         </div>
 
         {/* Right: Preview */}
-        <div className="flex w-[52%] flex-col bg-[#e8eaed]">
+        <div className={`flex flex-col bg-[#e8eaed] lg:w-[52%] ${
+          mobileTab === "preview" ? "w-full" : "hidden lg:flex"
+        }`}>
           {/* Preview toolbar */}
           <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4 py-2">
             <div className="flex items-center gap-2">

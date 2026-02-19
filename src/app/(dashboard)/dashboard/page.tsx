@@ -136,24 +136,13 @@ export default async function DashboardPage() {
               {restaurant ? restaurant.name : "Vos menus"}
             </p>
           </div>
-          {isPro || menus.length === 0 ? (
-            <Link
-              href="/menus/new"
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">Nouveau menu</span>
-            </Link>
-          ) : (
-            <Link
-              href="/dashboard/billing"
-              className="inline-flex items-center gap-2 rounded-xl border-2 border-primary px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary-light"
-              title="Plan gratuit : 1 menu max"
-            >
-              <Crown size={16} />
-              <span className="hidden sm:inline">Passer Pro</span>
-            </Link>
-          )}
+          <Link
+            href="/menus/new"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">Nouveau menu</span>
+          </Link>
         </div>
 
         {/* Stats strip */}
@@ -260,11 +249,17 @@ export default async function DashboardPage() {
 
                     {/* Footer */}
                     <div className="flex items-center justify-between">
-                      <span className="rounded-lg bg-surface px-2 py-1 text-xs font-medium text-muted">
-                        {menu.templateId === "ai-custom" ? "✦ IA" : menu.templateId}
-                      </span>
+                      {menu.templateId === "ai-custom" ? (
+                        <span className="rounded-lg bg-gradient-to-r from-primary/10 to-orange-50 px-2 py-1 text-xs font-semibold text-primary">
+                          ✦ IA Design
+                        </span>
+                      ) : (
+                        <span className="rounded-lg bg-surface px-2 py-1 text-xs font-medium capitalize text-muted">
+                          {menu.templateId}
+                        </span>
+                      )}
                       <span className="text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                        Ouvrir →
+                        Modifier →
                       </span>
                     </div>
                   </div>

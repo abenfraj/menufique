@@ -15,7 +15,7 @@ export default function NotFound() {
       </Link>
 
       {/* Big 404 */}
-      <div className="mb-2 font-[family-name:var(--font-playfair)] text-[120px] font-black leading-none text-primary/10 select-none">
+      <div className="mb-2 font-[family-name:var(--font-playfair)] text-[120px] font-black leading-none text-primary/20 select-none">
         404
       </div>
 
