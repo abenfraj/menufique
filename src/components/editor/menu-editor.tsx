@@ -101,15 +101,18 @@ const COMPLEXITY_OPTIONS: { value: AIComplexity; label: string; desc: string; ic
 
 // ─── Generation progress steps ──────────────
 
-type GenerationStep = "analyzing" | "designing" | "generating-image" | "saving" | "done";
+type GenerationStep = "analyzing" | "reading" | "designing" | "styling" | "coding" | "cover" | "saving" | "done";
 
-const STEP_LABELS: Record<GenerationStep, string> = {
-  analyzing: "Analyse de vos plats...",
-  designing: "Création du design par l'IA...",
-  "generating-image": "Génération de la page de couverture...",
-  saving: "Enregistrement...",
-  done: "Terminé !",
-};
+const GENERATION_STEPS: { key: GenerationStep; label: string; sublabel: string; progress: number }[] = [
+  { key: "analyzing", label: "Analyse du menu",                sublabel: "Lecture de vos plats et catégories",    progress: 8  },
+  { key: "reading",   label: "Compréhension du contexte",      sublabel: "Cuisine, ambiance, style culinaire",     progress: 20 },
+  { key: "designing", label: "Conception de la mise en page",  sublabel: "Structure et architecture du menu",      progress: 36 },
+  { key: "styling",   label: "Styles visuels",                 sublabel: "Typographie, couleurs, ornements",       progress: 52 },
+  { key: "coding",    label: "Génération du design",           sublabel: "Code HTML et CSS personnalisé",          progress: 68 },
+  { key: "cover",     label: "Page de couverture",             sublabel: "Image hero générée par DALL·E",          progress: 82 },
+  { key: "saving",    label: "Enregistrement",                 sublabel: "Sauvegarde de votre design",             progress: 94 },
+  { key: "done",      label: "Design terminé !",               sublabel: "Votre menu est prêt",                    progress: 100 },
+];
 
 // ─── Component ───────────────────────────────
 
@@ -342,9 +345,12 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     setGenerationStep("analyzing");
     setShowAIPanel(false);
     try {
-      setTimeout(() => setGenerationStep("designing"), 2000);
+      setTimeout(() => setGenerationStep("reading"),   1800);
+      setTimeout(() => setGenerationStep("designing"), 4000);
+      setTimeout(() => setGenerationStep("styling"),   7500);
+      setTimeout(() => setGenerationStep("coding"),    11000);
       if (aiIncludeCoverPage) {
-        setTimeout(() => setGenerationStep("generating-image"), 8000);
+        setTimeout(() => setGenerationStep("cover"), 15000);
       }
 
       const instructions = extractedText
@@ -477,6 +483,16 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
   const isPro = userPlan === "PRO";
   const hasDishes = menu.categories.some((c) => c.dishes.length > 0);
+
+  // ─── Ring progress computation ───────────────
+  const currentStepInfo = GENERATION_STEPS.find((s) => s.key === generationStep);
+  const generationProgress = currentStepInfo?.progress ?? 0;
+  const RING_R = 80;
+  const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R; // ≈ 502.65
+  const ringDashOffset = RING_CIRCUMFERENCE * (1 - generationProgress / 100);
+  const tipRotationDeg = (generationProgress / 100) * 360;
+  const visibleSteps = GENERATION_STEPS.filter((s) => s.key !== "cover" || aiIncludeCoverPage);
+  const currentStepIdx = visibleSteps.findIndex((s) => s.key === generationStep);
 
   return (
     <div className="min-h-screen bg-background">
@@ -965,31 +981,156 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
         </>
       )}
 
-      {/* ══════════════════ Generation Progress Bar ══════════════════ */}
+      {/* ══════════════════ Generation Progress Modal ══════════════════ */}
       {isGeneratingAI && (
-        <div className="animate-slide-down border-b border-primary/20">
-          <div className="animate-shimmer bg-gradient-to-r from-orange-50 via-primary/5 to-orange-50">
-            <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-3 py-3">
-              <div className="animate-pulse-glow flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-orange-500">
-                <Wand2 size={16} className="animate-pulse text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  {STEP_LABELS[generationStep]}
-                </p>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-primary/10">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-orange-400 transition-all duration-1000"
-                    style={{
-                      width:
-                        generationStep === "analyzing" ? "15%" :
-                        generationStep === "designing" ? "50%" :
-                        generationStep === "generating-image" ? "75%" :
-                        generationStep === "saving" ? "90%" : "100%",
-                    }}
-                  />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="animate-scale-in mx-4 w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
+
+            {/* Top section — ring */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-orange-50 via-white to-amber-50/60 px-6 pb-6 pt-6">
+              {/* Decorative background circles */}
+              <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full border border-primary/8" />
+              <div className="pointer-events-none absolute -right-7 -top-7 h-28 w-28 rounded-full border border-primary/12" />
+
+              {/* Header */}
+              <div className="relative mb-5 flex items-center gap-3">
+                <div className="animate-pulse-glow flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-orange-500 shadow-md shadow-primary/30">
+                  <Wand2 size={17} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">Génération IA en cours…</p>
+                  <p className="text-xs text-muted">Veuillez patienter quelques instants</p>
                 </div>
               </div>
+
+              {/* Circular progress ring */}
+              <div className="relative flex justify-center">
+                <div className="relative">
+                  <svg
+                    width="180" height="180"
+                    viewBox="0 0 200 200"
+                    className="overflow-visible"
+                    aria-hidden="true"
+                  >
+                    <defs>
+                      <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#FF6B35" />
+                        <stop offset="100%" stopColor="#FBBF24" />
+                      </linearGradient>
+                      <filter id="glow-filter" x="-30%" y="-30%" width="160%" height="160%">
+                        <feGaussianBlur stdDeviation="4" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+
+                    {/* Outer pulse ring */}
+                    <circle cx="100" cy="100" r="94" fill="none" stroke="#FF6B35" strokeWidth="1" opacity="0.15" className="animate-pulse" />
+
+                    {/* Track */}
+                    <circle cx="100" cy="100" r={RING_R} fill="none" stroke="#F0ECE8" strokeWidth="13" />
+
+                    {/* Progress arc */}
+                    <circle
+                      cx="100" cy="100" r={RING_R}
+                      fill="none"
+                      stroke="url(#ring-gradient)"
+                      strokeWidth="13"
+                      strokeLinecap="round"
+                      strokeDasharray={RING_CIRCUMFERENCE}
+                      strokeDashoffset={ringDashOffset}
+                      transform="rotate(-90 100 100)"
+                      filter="url(#glow-filter)"
+                      style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }}
+                    />
+
+                    {/* Glowing tip dot — rotates around center instead of lerping cx/cy */}
+                    {generationProgress > 2 && (
+                      <g
+                        style={{
+                          transformOrigin: "100px 100px",
+                          transform: `rotate(${tipRotationDeg}deg)`,
+                          transition: "transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                        }}
+                      >
+                        {/* Outer glow halo */}
+                        <circle cx="100" cy={100 - RING_R} r="10" fill="#FF6B35" opacity="0.25" />
+                        {/* Main dot */}
+                        <circle cx="100" cy={100 - RING_R} r="7" fill="#FF6B35" filter="url(#glow-filter)" />
+                        {/* Inner white gleam */}
+                        <circle cx="100" cy={100 - RING_R} r="3" fill="white" opacity="0.9" />
+                      </g>
+                    )}
+                  </svg>
+
+                  {/* Centered percentage */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span
+                      className="text-4xl font-bold tabular-nums text-foreground"
+                      style={{ transition: "all 0.8s ease" }}
+                    >
+                      {generationProgress}
+                    </span>
+                    <span className="text-sm font-medium text-muted">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current step label */}
+              <div className="mt-4 text-center">
+                <p className="text-sm font-semibold text-foreground" style={{ transition: "all 0.4s ease" }}>
+                  {currentStepInfo?.label}
+                </p>
+                <p className="mt-0.5 text-xs text-muted" style={{ transition: "all 0.4s ease" }}>
+                  {currentStepInfo?.sublabel}
+                </p>
+              </div>
+            </div>
+
+            {/* Step list */}
+            <div className="space-y-2 px-6 py-5">
+              {visibleSteps.filter((s) => s.key !== "done").map((step, idx) => {
+                const isDone = idx < currentStepIdx;
+                const isCurrent = idx === currentStepIdx;
+                return (
+                  <div
+                    key={step.key}
+                    className={`flex items-center gap-3 transition-all duration-500 ${
+                      isCurrent ? "opacity-100" : isDone ? "opacity-70" : "opacity-30"
+                    }`}
+                  >
+                    {/* Status dot */}
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
+                        isDone
+                          ? "bg-green-500"
+                          : isCurrent
+                          ? "bg-primary shadow-sm shadow-primary/40"
+                          : "border-2 border-border bg-white"
+                      }`}
+                    >
+                      {isDone && (
+                        <span className="text-[9px] font-black text-white">✓</span>
+                      )}
+                      {isCurrent && (
+                        <div className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                      )}
+                    </div>
+
+                    {/* Label */}
+                    <p className={`flex-1 text-xs font-medium ${isCurrent ? "text-foreground" : isDone ? "text-muted" : "text-muted/50"}`}>
+                      {step.label}
+                    </p>
+
+                    {/* Spinner for current */}
+                    {isCurrent && (
+                      <Loader2 size={12} className="shrink-0 animate-spin text-primary" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
