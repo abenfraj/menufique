@@ -158,6 +158,47 @@ export async function PUT(
   }
 }
 
+// PATCH /api/menus/[id] — Partial update for AI design fields (aiDesignHtml)
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = (await request.json()) as { aiDesignHtml?: string };
+    const { aiDesignHtml } = body;
+
+    if (typeof aiDesignHtml !== "string" || !aiDesignHtml.trim()) {
+      return NextResponse.json(
+        { error: "aiDesignHtml est requis" },
+        { status: 400 }
+      );
+    }
+
+    const menu = await prisma.menu.findFirst({
+      where: { id, userId: session.user.id as string },
+    });
+
+    if (!menu) {
+      return NextResponse.json({ error: "Menu introuvable" }, { status: 404 });
+    }
+
+    await prisma.menu.update({
+      where: { id },
+      data: { aiDesignHtml },
+    });
+
+    return NextResponse.json({ data: { success: true } });
+  } catch {
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+  }
+}
+
 // DELETE /api/menus/[id] — Delete a menu
 export async function DELETE(
   _request: Request,

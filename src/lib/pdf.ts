@@ -92,22 +92,10 @@ export async function generateMenuPdf(menuId: string): Promise<Buffer> {
     // Wait for fonts to finish loading — critical for correct scale calculation
     await page.evaluate(() => document.fonts.ready);
 
-    // Wait for the auto-scaler to complete on all .menu-page elements
-    const menuPageCount = (html.match(/class="menu-page"/g) ?? []).length;
-    if (menuPageCount > 0) {
-      await page.waitForFunction(
-        (expected: number) =>
-          document.querySelectorAll('.menu-page[data-mf-scaled]').length === expected ||
-          document.querySelectorAll('.menu-page').length === 0,
-        { timeout: 5000 },
-        menuPageCount
-      ).catch(() => {
-        // If scaler didn't complete, proceed anyway — overflow:hidden will clip
-      });
-    }
-
-    // Short settle after scaling to allow layout reflow
-    await new Promise((r) => setTimeout(r, 150));
+    // Wait for the paginator's DOMContentLoaded handler (background copy) to complete.
+    // The paginator pre-marks pages synchronously, so data-mf-scaled is already set;
+    // we just need a brief settle for DOMContentLoaded and any reflow to finish.
+    await new Promise((r) => setTimeout(r, 200));
 
     const isAiCustom = menu.templateId === "ai-custom";
     const pdfBuffer = await page.pdf({
@@ -140,35 +128,43 @@ function buildPdfHtml(data: TemplateData, templateId: string): string {
 
 // ────────────────────────── AI CUSTOM ──────────────────────────
 
-/** CSS that locks .menu-page to exact A4 dimensions — injected into PDF HTML if missing. */
+/**
+ * CSS fallback for menus that don't yet have `mf-a4-lock` in their stored HTML.
+ * Uses auto height so content flows across pages naturally.
+ */
 const PDF_A4_LOCK_CSS = `<style id="mf-a4-lock">
-.menu-page{width:210mm!important;height:297mm!important;min-height:unset!important;max-height:297mm!important;overflow:hidden!important;box-sizing:border-box!important;position:relative!important;}
+.menu-page{width:210mm!important;min-height:297mm!important;height:auto!important;max-height:none!important;overflow:visible!important;box-sizing:border-box!important;position:relative!important;page-break-after:always!important;break-after:page!important;}
 </style>`;
 
-/** JS auto-scaler — injected into PDF HTML before Puppeteer renders it. */
-const PDF_SCALER_SCRIPT = `<script data-mf-scaler="1">
+/**
+ * JS paginator — always injected before Puppeteer renders the PDF.
+ * 1. Disables any legacy scaler baked into the HTML (pre-marks pages as processed).
+ * 2. Overrides any old `height:297mm / overflow:hidden` lock with natural flow CSS.
+ * 3. Adds `break-inside:avoid` to categories/dishes so page breaks fall between items.
+ * 4. Copies .menu-page background to <html>/<body> so all PDF pages share the same bg.
+ */
+const PDF_PAGINATOR_SCRIPT = `<script data-mf-paginator="1">
 (function(){
-  var DONE='data-mf-scaled';
-  function fit(){
-    document.querySelectorAll('.menu-page').forEach(function(page){
-      if(page.hasAttribute(DONE))return;
-      page.setAttribute(DONE,'1');
-      var pH=page.clientHeight,cH=page.scrollHeight;
-      if(!pH||cH<=pH+1)return;
-      var scale=pH/cH;
-      var wrap=document.createElement('div');
-      wrap.style.cssText='transform-origin:top left;width:'+(100/scale).toFixed(3)+'%;display:block;';
-      while(page.firstChild)wrap.appendChild(page.firstChild);
-      page.appendChild(wrap);
-      wrap.style.transform='scale('+scale.toFixed(6)+')';
-    });
+  // 1. Prevent legacy scaler from running (it checks data-mf-scaled before scaling)
+  document.querySelectorAll('.menu-page').forEach(function(p){p.setAttribute('data-mf-scaled','1');});
+  // 2. Override old height lock — allow natural pagination across A4 pages
+  var s=document.createElement('style');
+  s.textContent=
+    '.menu-page{min-height:297mm!important;height:auto!important;max-height:none!important;overflow:visible!important;page-break-after:always!important;break-after:page!important;}'+
+    '.category,.menu-section,.dish,[class*="category"],[class*="section"],[class*="dish"],[class*="item"]{break-inside:avoid!important;page-break-inside:avoid!important;}';
+  (document.head||document.body).appendChild(s);
+  // 3. Copy page background to html/body so secondary pages keep the bg colour
+  function copyBg(){
+    var p=document.querySelector('.menu-page');
+    if(!p)return;
+    var bg=window.getComputedStyle(p).backgroundColor;
+    if(bg&&bg!=='rgba(0, 0, 0, 0)'&&bg!=='transparent'){
+      document.documentElement.style.setProperty('background-color',bg,'important');
+      document.body.style.setProperty('background-color',bg,'important');
+    }
   }
-  function run(){
-    if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}
-    else{fit();}
-  }
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}
-  else{run();}
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',copyBg);}
+  else{copyBg();}
 })();
 <\/script>`;
 
@@ -190,9 +186,10 @@ function buildAiCustomPdfHtml(data: TemplateData): string {
       html = html.replace("</head>", `${PDF_A4_LOCK_CSS}</head>`);
     }
 
-    // Inject auto-scaler JS if not already present (handles old generated menus)
-    if (!html.includes('data-mf-scaler')) {
-      html = html.replace("</body>", `${PDF_SCALER_SCRIPT}</body>`);
+    // Always inject the paginator — it disables any legacy scaler, overrides old
+    // height:297mm CSS, and copies the background colour to html/body so all pages look right.
+    if (!html.includes('data-mf-paginator')) {
+      html = html.replace("</body>", `${PDF_PAGINATOR_SCRIPT}</body>`);
     }
 
     // Inject watermark for FREE plan (must be last, after scaler)

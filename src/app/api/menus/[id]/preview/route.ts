@@ -18,6 +18,8 @@ export async function GET(
     }
 
     const { id: menuId } = await params;
+    // ?layout=1 → layout-editor mode: no scaler, visible overflow, unlocked height
+    const isLayout = new URL(_request.url).searchParams.get("layout") === "1";
 
     const menu = await prisma.menu.findFirst({
       where: { id: menuId, userId: session.user.id },
@@ -36,13 +38,18 @@ export async function GET(
 
     // If we have AI-generated HTML, inject preview normalizer + auto-scaler and serve it
     if (menu.templateId === "ai-custom" && menu.aiDesignHtml) {
-      // CSS: centers pages, adds shadow, locks A4 dimensions (overrides any min-height)
-      const previewCss = `<style id="preview-normalizer">
+      // In layout mode: no height lock, overflow visible so frames can be dragged freely
+      const previewCss = isLayout
+        ? `<style id="preview-normalizer">
+html,body{background:#e8eaed!important;margin:0!important;padding:20px 0!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:20px!important;min-height:100vh!important;}
+.menu-page{width:210mm!important;min-height:297mm!important;max-height:none!important;overflow:visible!important;box-sizing:border-box!important;box-shadow:0 4px 24px rgba(0,0,0,0.18)!important;flex-shrink:0!important;margin:0!important;position:relative!important;}
+</style>`
+        : `<style id="preview-normalizer">
 html,body{background:#e8eaed!important;margin:0!important;padding:20px 0!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:20px!important;min-height:100vh!important;}
 .menu-page{width:210mm!important;height:297mm!important;min-height:unset!important;max-height:297mm!important;overflow:hidden!important;box-sizing:border-box!important;box-shadow:0 4px 24px rgba(0,0,0,0.18)!important;flex-shrink:0!important;margin:0!important;position:relative!important;}
 </style>`;
 
-      // JS auto-scaler: fits overflowing content via transform:scale — waits for fonts before measuring
+      // JS auto-scaler: fits overflowing content via transform:scale — skipped in layout mode
       const scalerScript = `<script data-mf-scaler="1">
 (function(){var DONE='data-mf-scaled';function fit(){document.querySelectorAll('.menu-page').forEach(function(page){if(page.hasAttribute(DONE))return;page.setAttribute(DONE,'1');var pH=page.clientHeight,cH=page.scrollHeight;if(!pH||cH<=pH+1)return;var scale=pH/cH;var wrap=document.createElement('div');wrap.style.cssText='transform-origin:top left;width:'+(100/scale).toFixed(3)+'%;display:block;';while(page.firstChild)wrap.appendChild(page.firstChild);page.appendChild(wrap);wrap.style.transform='scale('+scale.toFixed(6)+')';});}function run(){if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}else{fit();}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}else{run();}})();
 <\/script>`;
@@ -52,7 +59,8 @@ html,body{background:#e8eaed!important;margin:0!important;padding:20px 0!importa
       if (!html.includes('id="preview-normalizer"')) {
         html = html.replace("</head>", `${previewCss}</head>`);
       }
-      if (!html.includes('data-mf-scaler')) {
+      // Skip scaler in layout mode — we need accurate, unscaled positions
+      if (!isLayout && !html.includes('data-mf-scaler')) {
         html = html.replace("</body>", `${scalerScript}</body>`);
       }
 

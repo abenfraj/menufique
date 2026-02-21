@@ -249,11 +249,13 @@ function replaceHexColor(html: string, from: string, to: string): string {
   return html.replace(new RegExp(escaped, "gi"), to.toUpperCase());
 }
 
-/** Strip preview injections before saving back to DB */
+/** Strip preview/PDF runtime injections before saving back to DB */
 function stripPreviewInjections(html: string): string {
   return html
     .replace(/<style id="preview-normalizer">[\s\S]*?<\/style>/i, "")
-    .replace(/<script data-mf-scaler="1">[\s\S]*?<\/script>/i, "");
+    .replace(/<script data-mf-scaler="1">[\s\S]*?<\/script>/i, "")
+    .replace(/<script data-mf-paginator="1">[\s\S]*?<\/script>/i, "");
+  // Note: data-mf-background is baked into stored HTML intentionally — do not strip.
 }
 
 // ─── Component ───────────────────────────────
@@ -455,7 +457,7 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
   async function saveAiDesignHtml(html: string) {
     await fetch(`/api/menus/${menuId}`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ aiDesignHtml: html }),
     });
@@ -643,116 +645,164 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   }
 
   // ── Layout editor: drag + resize category frames ──────────────────────────
+  // The iframe is loaded with ?layout=1 (no scaler, overflow:visible) so positions
+  // are accurate. We never read outerHTML — instead we extract positions via
+  // window.mfGetLayout() and apply them to the original HTML via DOMParser.
+
+  const layoutBaseHtmlRef = useRef<string>("");
+
+  /**
+   * Find category sections in a document.
+   * Uses "exclude descendants" so multi-column layouts (2+2 split) work correctly:
+   * all top-level matching elements are returned regardless of which column they're in.
+   */
+  function findSections(root: Document): Element[] {
+    const SEL = [
+      ".menu-section",
+      "[class*='menu-section']",
+      "[class*='category-block']",
+      "[class*='category-section']",
+      "[class*='food-section']",
+      "section",
+      "[class*='category']",
+      "[class*='section']",
+      ".category",
+      ".section",
+    ];
+    for (const sel of SEL) {
+      let found: Element[];
+      try { found = [...root.querySelectorAll(sel)]; } catch { continue; }
+      if (found.length < 2) continue;
+      // Keep only top-level elements: exclude any element that is a descendant
+      // of another element in the same set. This handles multi-column layouts
+      // where sections are split across column containers.
+      const topLevel = found.filter(
+        (el) => !found.some((other) => other !== el && other.contains(el))
+      );
+      // In DOMParser documents (no layout), skip the offsetHeight check.
+      const visible = root === document
+        ? topLevel.filter((el) => (el as HTMLElement).offsetHeight > 20)
+        : topLevel;
+      if (visible.length >= 2) return visible;
+    }
+    return [];
+  }
 
   function injectLayoutEditor(iframe: HTMLIFrameElement) {
     const doc = iframe.contentDocument;
     if (!doc) return;
 
-    // Remove any previous injection
     doc.getElementById("mf-layout-style")?.remove();
     doc.getElementById("mf-layout-script")?.remove();
 
     const styleEl = doc.createElement("style");
     styleEl.id = "mf-layout-style";
     styleEl.textContent = `
-      .mf-page-host { position:relative!important; overflow:visible!important; }
       .mf-draggable {
         position:absolute!important; box-sizing:border-box!important;
-        outline:2px dashed #FF6B35; outline-offset:2px; transition:outline 0.1s;
+        outline:2px dashed rgba(255,107,53,0.6); outline-offset:2px;
       }
-      .mf-draggable.mf-selected { outline:2px solid #FF6B35; box-shadow:0 0 0 4px rgba(255,107,53,0.15); }
+      .mf-draggable.mf-selected {
+        outline:2px solid #FF6B35!important;
+        box-shadow:0 0 0 4px rgba(255,107,53,0.15)!important;
+        z-index:999!important;
+      }
       .mf-drag-handle {
-        position:absolute; top:0; left:0; right:0; height:22px;
-        background:linear-gradient(90deg,#FF6B35,#f59e0b);
-        border-radius:6px 6px 0 0; cursor:grab; z-index:10001;
-        display:flex; align-items:center; padding:0 8px; gap:5px;
-        user-select:none; pointer-events:auto;
+        position:absolute!important; top:0!important; left:0!important; right:0!important;
+        height:22px!important; background:linear-gradient(90deg,#FF6B35,#f59e0b)!important;
+        border-radius:6px 6px 0 0!important; cursor:grab!important; z-index:10001!important;
+        display:flex!important; align-items:center!important; padding:0 8px!important; gap:5px!important;
+        user-select:none!important; pointer-events:auto!important; margin:0!important;
       }
-      .mf-drag-handle:active { cursor:grabbing; }
-      .mf-drag-handle .mf-hname {
-        color:#fff; font-size:10px; font-weight:700;
-        font-family:system-ui,sans-serif; text-transform:uppercase;
-        letter-spacing:.5px; white-space:nowrap; overflow:hidden;
-        text-overflow:ellipsis; pointer-events:none;
+      .mf-drag-handle:active { cursor:grabbing!important; }
+      .mf-hname {
+        color:#fff!important; font-size:10px!important; font-weight:700!important;
+        font-family:system-ui,sans-serif!important; text-transform:uppercase!important;
+        letter-spacing:.5px!important; white-space:nowrap!important; overflow:hidden!important;
+        text-overflow:ellipsis!important; pointer-events:none!important; max-width:90%!important;
       }
-      .mf-drag-handle .mf-hdots {
-        color:rgba(255,255,255,.8); font-size:13px; pointer-events:none; flex-shrink:0;
-      }
+      .mf-hdots { color:rgba(255,255,255,.8)!important; font-size:13px!important; pointer-events:none!important; flex-shrink:0!important; }
       .mf-resize-se {
-        position:absolute; bottom:-1px; right:-1px; width:18px; height:18px;
-        background:#FF6B35; border-radius:50% 0 4px 0; cursor:se-resize;
-        z-index:10001; display:flex; align-items:center; justify-content:center;
+        position:absolute!important; bottom:-1px!important; right:-1px!important;
+        width:18px!important; height:18px!important; background:#FF6B35!important;
+        border-radius:50% 0 4px 0!important; cursor:se-resize!important; z-index:10001!important;
       }
       .mf-resize-se::after {
-        content:''; width:6px; height:6px;
-        border-right:2px solid #fff; border-bottom:2px solid #fff; border-radius:0 0 2px 0;
+        content:''!important; display:block!important; margin:4px 0 0 4px!important;
+        width:7px!important; height:7px!important;
+        border-right:2px solid #fff!important; border-bottom:2px solid #fff!important;
       }
     `;
     doc.head.appendChild(styleEl);
 
     const scriptEl = doc.createElement("script");
     scriptEl.id = "mf-layout-script";
+    // NOTE: runs in the iframe — no TypeScript, pure ES5-compatible JS.
+    // The scaler is NOT present (?layout=1) so getBoundingClientRect gives real positions.
     scriptEl.textContent = `
 (function(){
-  var SEL=[".menu-section","[class*='category']","[class*='section']",".category",".section"];
+  /* ── Find category sections ── */
+  /* Uses "exclude descendants" to support multi-column layouts (2+2 columns etc.) */
+  var SEL=[
+    ".menu-section","[class*='menu-section']","[class*='category-block']",
+    "[class*='category-section']","[class*='food-section']","section",
+    "[class*='category']","[class*='section']",".category",".section"
+  ];
   var sections=[];
-  for(var i=0;i<SEL.length;i++){
-    var found=Array.from(document.querySelectorAll(SEL[i]));
+  for(var si=0;si<SEL.length;si++){
+    var found;
+    try{found=Array.from(document.querySelectorAll(SEL[si]));}catch(e){continue;}
     if(found.length<2)continue;
-    var groups=new Map();
-    found.forEach(function(el){
-      var p=el.parentElement;if(!p)return;
-      if(!groups.has(p))groups.set(p,[]);groups.get(p).push(el);
+    /* Keep only top-level: remove any element that is a descendant of another in the set */
+    var topLevel=found.filter(function(el){
+      return !found.some(function(other){return other!==el&&other.contains(el);});
     });
-    var best=[];
-    groups.forEach(function(els){if(els.length>best.length)best=els;});
-    if(best.length>=2){sections=best;break;}
+    /* Filter out tiny elements (icon wrappers, decorative divs) */
+    var visible=topLevel.filter(function(el){return el.offsetHeight>20;});
+    if(visible.length>=2){sections=visible;break;}
   }
-  if(!sections.length){console.warn('[MF Layout] aucune section trouvée');return;}
+  if(!sections.length){console.warn('[MF] no sections found');return;}
 
-  // Use menu-page as position host (or fallback to section parent)
-  var host=document.querySelector('.menu-page')||sections[0].parentElement;
-  host.classList.add('mf-page-host');
-
-  var hostRect=host.getBoundingClientRect();
-
-  // Neutralize mf-scaler transform so positions are real
-  var scalerWrap=host.querySelector('[style*="transform:scale"]');
-  var scaleValue=1;
-  if(scalerWrap){
-    var m=scalerWrap.style.transform.match(/scale\\(([^)]+)\\)/);
-    if(m)scaleValue=parseFloat(m[1]);
+  /* ── Find the A4 page container — single positioning root for all sections ── */
+  /* Reparenting into one container lets sections be dragged across columns freely */
+  var page=document.querySelector('.menu-page');
+  if(!page){
+    /* Walk up from first section until we find an ancestor that contains ALL sections */
+    var anc=sections[0].parentElement;
+    while(anc&&!sections.every(function(s){return anc.contains(s);}))anc=anc.parentElement;
+    page=anc||document.body;
   }
 
+  /* Measure each section relative to page BEFORE any DOM change */
+  var pageRect=page.getBoundingClientRect();
   var positions=sections.map(function(s){
-    var r=s.getBoundingClientRect();
-    return{
-      left:(r.left-hostRect.left)/scaleValue,
-      top:(r.top-hostRect.top)/scaleValue,
-      width:r.width/scaleValue,
-      height:r.height/scaleValue
-    };
+    var sr=s.getBoundingClientRect();
+    return{left:sr.left-pageRect.left, top:sr.top-pageRect.top, width:sr.width, height:sr.height};
   });
 
-  // Ensure host is tall enough
-  var maxBot=Math.max.apply(null,positions.map(function(p){return p.top+p.height;}));
-  if(parseFloat(host.style.height||0)<maxBot+40)host.style.minHeight=(maxBot+40)+'px';
+  /* Set page as positioning context and ensure it's tall enough */
+  page.style.position='relative';
+  var maxBot=positions.reduce(function(m,p){return Math.max(m,p.top+p.height);},0);
+  if(maxBot+40>page.offsetHeight)page.style.minHeight=(maxBot+40)+'px';
 
+  /* ── Make each section a draggable absolute frame, reparented into page ── */
   sections.forEach(function(sec,i){
     var pos=positions[i];
-    sec.dataset.mfOrigPt=sec.style.paddingTop||'';
     sec.style.left=pos.left+'px';
     sec.style.top=pos.top+'px';
     sec.style.width=pos.width+'px';
     sec.style.paddingTop='22px';
     sec.classList.add('mf-draggable');
+    /* Move into page so the section can be dragged anywhere on the A4 canvas */
+    page.appendChild(sec);
 
-    var titleEl=sec.querySelector('h1,h2,h3,h4,.category-name,.section-title,.menu-title');
-    var title=titleEl?titleEl.textContent.trim().slice(0,28):('Section '+(i+1));
+    var titleEl=sec.querySelector('h1,h2,h3,h4,[class*="title"],[class*="name"]');
+    var title=titleEl?titleEl.textContent.trim().slice(0,30):('Section '+(i+1));
 
     var handle=document.createElement('div');
     handle.className='mf-drag-handle';
-    handle.innerHTML='<span class="mf-hdots">⠿</span><span class="mf-hname">'+title+'</span>';
+    handle.innerHTML='<span class="mf-hdots">⠿</span><span class="mf-hname">'+
+      title.replace(/</g,'&lt;')+'</span>';
     sec.insertBefore(handle,sec.firstChild);
 
     var resizer=document.createElement('div');
@@ -760,82 +810,134 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     sec.appendChild(resizer);
   });
 
+  /* ── Drag & resize interactions ── */
   var action=null;
-  document.addEventListener('mousedown',function(e){
-    var handle=e.target.classList.contains('mf-drag-handle')?e.target:(e.target.closest&&e.target.closest('.mf-drag-handle'));
-    var resizer=e.target.classList.contains('mf-resize-se')?e.target:null;
-    if(!handle&&!resizer)return;
-    var draggable=handle?handle.parentElement:(resizer?resizer.parentElement:null);
-    if(!draggable||!draggable.classList.contains('mf-draggable'))return;
-    document.querySelectorAll('.mf-selected').forEach(function(el){el.classList.remove('mf-selected');});
-    draggable.classList.add('mf-selected');
-    draggable.style.zIndex='1000';
-    if(handle){
-      action={type:'drag',el:draggable,sx:e.clientX,sy:e.clientY,
-        ol:parseInt(draggable.style.left)||0,ot:parseInt(draggable.style.top)||0};
-    } else {
-      action={type:'resize',el:draggable,sx:e.clientX,sy:e.clientY,
-        ow:draggable.getBoundingClientRect().width/scaleValue,
-        oh:draggable.getBoundingClientRect().height/scaleValue};
-    }
-    e.preventDefault();e.stopPropagation();
-  },true);
 
-  document.addEventListener('mousemove',function(e){
+  function onDown(e){
+    var t=e.target;
+    /* walk up to find handle or resizer */
+    var handle=t.classList.contains('mf-drag-handle')?t:null;
+    if(!handle&&t.parentElement&&t.parentElement.classList.contains('mf-drag-handle'))
+      handle=t.parentElement;
+    var resizer=t.classList.contains('mf-resize-se')?t:null;
+    if(!handle&&!resizer)return;
+
+    var sec=handle?(handle.parentElement):(resizer.parentElement);
+    if(!sec||!sec.classList.contains('mf-draggable'))return;
+
+    document.querySelectorAll('.mf-selected').forEach(function(el){el.classList.remove('mf-selected');});
+    sec.classList.add('mf-selected');
+
+    if(handle){
+      action={type:'drag',el:sec,sx:e.clientX,sy:e.clientY,
+        ol:parseFloat(sec.style.left)||0, ot:parseFloat(sec.style.top)||0};
+    }else{
+      action={type:'resize',el:sec,sx:e.clientX,sy:e.clientY,
+        ow:parseFloat(sec.style.width)||sec.offsetWidth,
+        oh:sec.offsetHeight};
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function onMove(e){
     if(!action)return;
-    var dx=(e.clientX-action.sx)/scaleValue,dy=(e.clientY-action.sy)/scaleValue;
+    var dx=e.clientX-action.sx, dy=e.clientY-action.sy;
     if(action.type==='drag'){
       action.el.style.left=Math.max(0,action.ol+dx)+'px';
       action.el.style.top=Math.max(0,action.ot+dy)+'px';
-    } else {
+    }else{
       action.el.style.width=Math.max(80,action.ow+dx)+'px';
       action.el.style.height=Math.max(40,action.oh+dy)+'px';
       action.el.style.overflow='hidden';
     }
     e.preventDefault();
-  },true);
+  }
 
-  document.addEventListener('mouseup',function(){
-    if(action){action.el.style.zIndex='';action=null;}
-  },true);
+  function onUp(){if(action)action=null;}
 
-  document.addEventListener('click',function(e){
-    if(!e.target.closest('.mf-draggable')){
-      document.querySelectorAll('.mf-selected').forEach(function(el){el.classList.remove('mf-selected');});
-    }
-  });
+  document.addEventListener('mousedown',onDown,true);
+  document.addEventListener('mousemove',onMove,true);
+  document.addEventListener('mouseup',onUp,true);
+
+  /* ── Expose positions for the parent to read on save ── */
+  window.mfGetLayout=function(){
+    return Array.from(document.querySelectorAll('.mf-draggable')).map(function(el){
+      return{
+        left:el.style.left||'0px',
+        top:el.style.top||'0px',
+        width:el.style.width||'',
+        height:el.style.height||''
+      };
+    });
+  };
 })();
     `;
     doc.body.appendChild(scriptEl);
   }
 
+  interface LayoutPos { left: string; top: string; width: string; height: string; }
+
   async function saveLayoutAndExit() {
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc) { setLayoutMode(false); return; }
+    const win = iframeRef.current?.contentWindow as (Window & { mfGetLayout?: () => LayoutPos[] }) | null;
+    const positions: LayoutPos[] = win?.mfGetLayout?.() ?? [];
 
-    // Strip editor UI from the DOM before reading HTML
-    doc.getElementById("mf-layout-style")?.remove();
-    doc.getElementById("mf-layout-script")?.remove();
-    doc.querySelectorAll(".mf-drag-handle").forEach((el) => el.remove());
-    doc.querySelectorAll(".mf-resize-se").forEach((el) => el.remove());
-    doc.querySelectorAll(".mf-draggable").forEach((el) => {
-      const htmlEl = el as HTMLElement;
-      htmlEl.style.paddingTop = htmlEl.dataset.mfOrigPt ?? "";
-      delete htmlEl.dataset.mfOrigPt;
-      htmlEl.classList.remove("mf-draggable", "mf-selected");
-    });
-    doc.querySelectorAll(".mf-page-host").forEach((el) => {
-      el.classList.remove("mf-page-host");
+    if (!positions.length) {
+      setLayoutMode(false);
+      return;
+    }
+
+    // Apply new positions to the original HTML using DOMParser (never touch the iframe DOM)
+    const baseHtml = layoutBaseHtmlRef.current || menu?.aiDesignHtml || "";
+    const parsedDoc = new DOMParser().parseFromString(baseHtml, "text/html");
+    const sections = findSections(parsedDoc);
+
+    if (!sections.length) {
+      setLayoutMode(false);
+      return;
+    }
+
+    // Find the A4 page container — single positioning root (mirrors the iframe reparenting)
+    const pageEl = (
+      parsedDoc.querySelector(".menu-page") ??
+      (() => {
+        // Walk up from first section until we find a common ancestor for all
+        let a: Element | null = sections[0].parentElement;
+        while (a && !sections.every((s) => a!.contains(s))) a = a.parentElement;
+        return a;
+      })()
+    ) as HTMLElement | null;
+
+    if (!pageEl) { setLayoutMode(false); return; }
+
+    pageEl.style.position = "relative";
+    const maxBot = positions.reduce((m, p) => {
+      return Math.max(m, (parseFloat(p.top) || 0) + (parseFloat(p.height) || 200) + 40);
+    }, 0);
+    const currentMin = parseFloat(pageEl.style.minHeight) || 0;
+    if (maxBot > currentMin) pageEl.style.minHeight = `${maxBot}px`;
+
+    // Apply position/size and reparent each section into pageEl
+    // (mirrors the iframe: sections dragged out of columns live on the A4 canvas)
+    positions.forEach((pos, i) => {
+      const el = sections[i] as HTMLElement | undefined;
+      if (!el) return;
+      el.style.position = "absolute";
+      el.style.left = pos.left;
+      el.style.top = pos.top;
+      if (pos.width) el.style.width = pos.width;
+      if (pos.height) el.style.height = pos.height;
+      el.style.boxSizing = "border-box";
+      pageEl.appendChild(el); // move into pageEl (frees from column constraints)
     });
 
-    const rawHtml = `<!DOCTYPE html>\n` + doc.documentElement.outerHTML;
-    const cleanHtml = stripPreviewInjections(rawHtml);
+    const newHtml = `<!DOCTYPE html>\n` + parsedDoc.documentElement.outerHTML;
 
     pushToUndoHistory(menu?.aiDesignHtml ?? "");
-    setMenu((prev) => prev ? { ...prev, aiDesignHtml: cleanHtml } : prev);
-    await saveAiDesignHtml(cleanHtml);
+    setMenu((prev) => prev ? { ...prev, aiDesignHtml: newHtml } : prev);
+    await saveAiDesignHtml(newHtml);
+    // setLayoutMode(false) triggers previewSrc to drop ?layout=1 → iframe reloads automatically
     setLayoutMode(false);
-    setPdfKey((k) => k + 1);
   }
 
   // Re-inject inline editor when iframe loads and editMode is on
@@ -873,31 +975,8 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewZoom]);
 
-  // Inject / remove layout editor when layoutMode toggles
-  useEffect(() => {
-    if (!iframeRef.current) return;
-    if (layoutMode) {
-      injectLayoutEditor(iframeRef.current);
-    } else {
-      // If user exits without saving, just remove injected elements
-      const doc = iframeRef.current.contentDocument;
-      if (!doc) return;
-      doc.getElementById("mf-layout-style")?.remove();
-      doc.getElementById("mf-layout-script")?.remove();
-      doc.querySelectorAll(".mf-drag-handle").forEach((el) => el.remove());
-      doc.querySelectorAll(".mf-resize-se").forEach((el) => el.remove());
-      doc.querySelectorAll(".mf-draggable").forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.paddingTop = htmlEl.dataset.mfOrigPt ?? "";
-        delete htmlEl.dataset.mfOrigPt;
-        htmlEl.classList.remove("mf-draggable", "mf-selected");
-      });
-      doc.querySelectorAll(".mf-page-host").forEach((el) => {
-        el.classList.remove("mf-page-host");
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layoutMode]);
+  // Layout mode uses ?layout=1 on the preview URL → iframe reloads automatically
+  // when layoutMode toggles. No manual DOM cleanup needed.
 
   // ─────────────────────────────────────────
   //  Story 20.1 — Iterative AI prompt
@@ -1454,8 +1533,10 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   // Detected primary color
   const detectedColor = isAiMenu ? detectPrimaryColor(menu.aiDesignHtml!) : null;
 
-  // Current preview src
-  const previewSrc = `/api/menus/${menuId}/preview`;
+  // Current preview src — ?layout=1 disables scaler so positions are accurate
+  const previewSrc = layoutMode
+    ? `/api/menus/${menuId}/preview?layout=1`
+    : `/api/menus/${menuId}/preview`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -2399,7 +2480,13 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
                   {/* Layout editor — drag & resize frames */}
                   <button
-                    onClick={() => setLayoutMode(!layoutMode)}
+                    onClick={() => {
+                      if (!layoutMode) {
+                        // Snapshot original HTML before any DOM manipulation
+                        layoutBaseHtmlRef.current = menu?.aiDesignHtml ?? "";
+                      }
+                      setLayoutMode(!layoutMode);
+                    }}
                     disabled={!iframeRef.current}
                     title={layoutMode ? "Quitter la mise en page" : "Déplacer et redimensionner les cadres"}
                     className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors ${layoutMode ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface hover:text-foreground"} disabled:opacity-30`}

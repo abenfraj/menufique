@@ -515,40 +515,33 @@ export function buildBackgroundPrompt(
 }
 
 /**
- * CSS injected into every AI-generated menu HTML to lock A4 page dimensions.
- * Overrides any min-height / max-height the AI might have introduced.
+ * CSS injected into every AI-generated menu HTML.
+ * Each .menu-page is exactly 210mm wide and at least one A4 page tall.
+ * Height is unconstrained — content that overflows flows to the next PDF page
+ * naturally (Puppeteer paginates at 297mm intervals).
+ * `break-after: page` ensures multiple .menu-page blocks each start on a new page.
  */
 const A4_LOCK_CSS = `<style id="mf-a4-lock">
-.menu-page{width:210mm!important;height:297mm!important;min-height:unset!important;max-height:297mm!important;overflow:hidden!important;box-sizing:border-box!important;position:relative!important;flex-shrink:0!important;}
+.menu-page{width:210mm!important;min-height:297mm!important;height:auto!important;max-height:none!important;overflow:visible!important;box-sizing:border-box!important;position:relative!important;flex-shrink:0!important;page-break-after:always!important;break-after:page!important;}
 </style>`;
 
 /**
  * JS injected into every AI-generated menu HTML.
- * Detects overflow on each .menu-page and auto-scales content via transform to fit.
- * Marked with data-mf-scaler to prevent double injection.
+ * Copies the .menu-page background color to <html>/<body> so that all PDF pages
+ * (beyond the first) keep the same background when Puppeteer paginates.
+ * Uses data-mf-background (distinct from data-mf-scaler) so the preview route
+ * can still inject its own scaler for single-page display.
  */
-const AUTO_SCALER_SCRIPT = `<script data-mf-scaler="1">
+const AUTO_SCALER_SCRIPT = `<script data-mf-background="1">
 (function(){
-  var DONE='data-mf-scaled';
-  function fit(){
-    document.querySelectorAll('.menu-page').forEach(function(page){
-      if(page.hasAttribute(DONE))return;
-      page.setAttribute(DONE,'1');
-      var pH=page.clientHeight,cH=page.scrollHeight;
-      if(!pH||cH<=pH+1)return;
-      var scale=pH/cH;
-      var wrap=document.createElement('div');
-      wrap.style.cssText='transform-origin:top left;width:'+(100/scale).toFixed(3)+'%;display:block;';
-      while(page.firstChild)wrap.appendChild(page.firstChild);
-      page.appendChild(wrap);
-      wrap.style.transform='scale('+scale.toFixed(6)+')';
-    });
-  }
-  // Wait for fonts before measuring — DOMContentLoaded fires before fonts are ready,
-  // which causes wrong scale calculations when Google Fonts are used.
   function run(){
-    if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}
-    else{fit();}
+    var p=document.querySelector('.menu-page');
+    if(!p)return;
+    var bg=window.getComputedStyle(p).backgroundColor;
+    if(bg&&bg!=='rgba(0, 0, 0, 0)'&&bg!=='transparent'){
+      document.documentElement.style.setProperty('background-color',bg,'important');
+      document.body.style.setProperty('background-color',bg,'important');
+    }
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',run);}
   else{run();}
@@ -596,8 +589,8 @@ export function injectImagesIntoHtml(
     result = result.replace("</head>", `${A4_LOCK_CSS}</head>`);
   }
 
-  // Inject auto-scaler JS before </body>
-  if (!result.includes('data-mf-scaler')) {
+  // Inject background-copy JS before </body>
+  if (!result.includes('data-mf-background')) {
     result = result.replace("</body>", `${AUTO_SCALER_SCRIPT}</body>`);
   }
 
