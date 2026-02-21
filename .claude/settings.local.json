@@ -35,7 +35,11 @@
       "Bash(npm test:*)",
       "Bash(node:*)",
       "Bash(echo:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git -C /c/Users/ayoub/dev/menufique log --oneline -10)",
+      "Bash(git -C /c/Users/ayoub/dev/menufique show --stat HEAD)",
+      "Bash(npm run test:run:*)",
+      "Bash(git rm:*)"
     ],
     "defaultMode": "acceptEdits"
   }

@@ -34,12 +34,13 @@ import {
   Redo2,
   Edit3,
   Clock,
-  Layers,
   GripVertical,
   ChevronUp,
   ChevronDown,
   Trash2,
   RotateCcw,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import Link from "next/link";
 import { ImportFromUrlModal } from "./import-from-url-modal";
@@ -349,15 +350,15 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   const [renameValue, setRenameValue] = useState("");
   const [confirmDeleteSnapId, setConfirmDeleteSnapId] = useState<string | null>(null);
 
-  // ── Story 20.7 — Design variant ──────────
-  const [variantHtml, setVariantHtml] = useState<string | null>(null);
-  const [isGeneratingVariant, setIsGeneratingVariant] = useState(false);
-  const [activeView, setActiveView] = useState<"original" | "variant">("original");
-  const [variantWarning, setVariantWarning] = useState(false);
-
   // ── Story 20.8 — Section reorder ─────────
   const [reorderMode, setReorderMode] = useState(false);
   const [detectedSections, setDetectedSections] = useState<string[]>([]);
+
+  // ── Zoom controls ─────────────────────────
+  const [previewZoom, setPreviewZoom] = useState(1.0);
+
+  // ── Layout editor (drag + resize frames) ──
+  const [layoutMode, setLayoutMode] = useState(false);
 
   // ─────────────────────────────────────────
   //  Data fetching
@@ -629,6 +630,214 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     );
   }
 
+  // Apply zoom level to the iframe document
+  function applyZoomToIframe(zoom: number) {
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (doc?.documentElement) {
+        doc.documentElement.style.zoom = String(zoom);
+      }
+    } catch {
+      // cross-origin or not yet loaded — no-op
+    }
+  }
+
+  // ── Layout editor: drag + resize category frames ──────────────────────────
+
+  function injectLayoutEditor(iframe: HTMLIFrameElement) {
+    const doc = iframe.contentDocument;
+    if (!doc) return;
+
+    // Remove any previous injection
+    doc.getElementById("mf-layout-style")?.remove();
+    doc.getElementById("mf-layout-script")?.remove();
+
+    const styleEl = doc.createElement("style");
+    styleEl.id = "mf-layout-style";
+    styleEl.textContent = `
+      .mf-page-host { position:relative!important; overflow:visible!important; }
+      .mf-draggable {
+        position:absolute!important; box-sizing:border-box!important;
+        outline:2px dashed #FF6B35; outline-offset:2px; transition:outline 0.1s;
+      }
+      .mf-draggable.mf-selected { outline:2px solid #FF6B35; box-shadow:0 0 0 4px rgba(255,107,53,0.15); }
+      .mf-drag-handle {
+        position:absolute; top:0; left:0; right:0; height:22px;
+        background:linear-gradient(90deg,#FF6B35,#f59e0b);
+        border-radius:6px 6px 0 0; cursor:grab; z-index:10001;
+        display:flex; align-items:center; padding:0 8px; gap:5px;
+        user-select:none; pointer-events:auto;
+      }
+      .mf-drag-handle:active { cursor:grabbing; }
+      .mf-drag-handle .mf-hname {
+        color:#fff; font-size:10px; font-weight:700;
+        font-family:system-ui,sans-serif; text-transform:uppercase;
+        letter-spacing:.5px; white-space:nowrap; overflow:hidden;
+        text-overflow:ellipsis; pointer-events:none;
+      }
+      .mf-drag-handle .mf-hdots {
+        color:rgba(255,255,255,.8); font-size:13px; pointer-events:none; flex-shrink:0;
+      }
+      .mf-resize-se {
+        position:absolute; bottom:-1px; right:-1px; width:18px; height:18px;
+        background:#FF6B35; border-radius:50% 0 4px 0; cursor:se-resize;
+        z-index:10001; display:flex; align-items:center; justify-content:center;
+      }
+      .mf-resize-se::after {
+        content:''; width:6px; height:6px;
+        border-right:2px solid #fff; border-bottom:2px solid #fff; border-radius:0 0 2px 0;
+      }
+    `;
+    doc.head.appendChild(styleEl);
+
+    const scriptEl = doc.createElement("script");
+    scriptEl.id = "mf-layout-script";
+    scriptEl.textContent = `
+(function(){
+  var SEL=[".menu-section","[class*='category']","[class*='section']",".category",".section"];
+  var sections=[];
+  for(var i=0;i<SEL.length;i++){
+    var found=Array.from(document.querySelectorAll(SEL[i]));
+    if(found.length<2)continue;
+    var groups=new Map();
+    found.forEach(function(el){
+      var p=el.parentElement;if(!p)return;
+      if(!groups.has(p))groups.set(p,[]);groups.get(p).push(el);
+    });
+    var best=[];
+    groups.forEach(function(els){if(els.length>best.length)best=els;});
+    if(best.length>=2){sections=best;break;}
+  }
+  if(!sections.length){console.warn('[MF Layout] aucune section trouvée');return;}
+
+  // Use menu-page as position host (or fallback to section parent)
+  var host=document.querySelector('.menu-page')||sections[0].parentElement;
+  host.classList.add('mf-page-host');
+
+  var hostRect=host.getBoundingClientRect();
+
+  // Neutralize mf-scaler transform so positions are real
+  var scalerWrap=host.querySelector('[style*="transform:scale"]');
+  var scaleValue=1;
+  if(scalerWrap){
+    var m=scalerWrap.style.transform.match(/scale\\(([^)]+)\\)/);
+    if(m)scaleValue=parseFloat(m[1]);
+  }
+
+  var positions=sections.map(function(s){
+    var r=s.getBoundingClientRect();
+    return{
+      left:(r.left-hostRect.left)/scaleValue,
+      top:(r.top-hostRect.top)/scaleValue,
+      width:r.width/scaleValue,
+      height:r.height/scaleValue
+    };
+  });
+
+  // Ensure host is tall enough
+  var maxBot=Math.max.apply(null,positions.map(function(p){return p.top+p.height;}));
+  if(parseFloat(host.style.height||0)<maxBot+40)host.style.minHeight=(maxBot+40)+'px';
+
+  sections.forEach(function(sec,i){
+    var pos=positions[i];
+    sec.dataset.mfOrigPt=sec.style.paddingTop||'';
+    sec.style.left=pos.left+'px';
+    sec.style.top=pos.top+'px';
+    sec.style.width=pos.width+'px';
+    sec.style.paddingTop='22px';
+    sec.classList.add('mf-draggable');
+
+    var titleEl=sec.querySelector('h1,h2,h3,h4,.category-name,.section-title,.menu-title');
+    var title=titleEl?titleEl.textContent.trim().slice(0,28):('Section '+(i+1));
+
+    var handle=document.createElement('div');
+    handle.className='mf-drag-handle';
+    handle.innerHTML='<span class="mf-hdots">⠿</span><span class="mf-hname">'+title+'</span>';
+    sec.insertBefore(handle,sec.firstChild);
+
+    var resizer=document.createElement('div');
+    resizer.className='mf-resize-se';
+    sec.appendChild(resizer);
+  });
+
+  var action=null;
+  document.addEventListener('mousedown',function(e){
+    var handle=e.target.classList.contains('mf-drag-handle')?e.target:(e.target.closest&&e.target.closest('.mf-drag-handle'));
+    var resizer=e.target.classList.contains('mf-resize-se')?e.target:null;
+    if(!handle&&!resizer)return;
+    var draggable=handle?handle.parentElement:(resizer?resizer.parentElement:null);
+    if(!draggable||!draggable.classList.contains('mf-draggable'))return;
+    document.querySelectorAll('.mf-selected').forEach(function(el){el.classList.remove('mf-selected');});
+    draggable.classList.add('mf-selected');
+    draggable.style.zIndex='1000';
+    if(handle){
+      action={type:'drag',el:draggable,sx:e.clientX,sy:e.clientY,
+        ol:parseInt(draggable.style.left)||0,ot:parseInt(draggable.style.top)||0};
+    } else {
+      action={type:'resize',el:draggable,sx:e.clientX,sy:e.clientY,
+        ow:draggable.getBoundingClientRect().width/scaleValue,
+        oh:draggable.getBoundingClientRect().height/scaleValue};
+    }
+    e.preventDefault();e.stopPropagation();
+  },true);
+
+  document.addEventListener('mousemove',function(e){
+    if(!action)return;
+    var dx=(e.clientX-action.sx)/scaleValue,dy=(e.clientY-action.sy)/scaleValue;
+    if(action.type==='drag'){
+      action.el.style.left=Math.max(0,action.ol+dx)+'px';
+      action.el.style.top=Math.max(0,action.ot+dy)+'px';
+    } else {
+      action.el.style.width=Math.max(80,action.ow+dx)+'px';
+      action.el.style.height=Math.max(40,action.oh+dy)+'px';
+      action.el.style.overflow='hidden';
+    }
+    e.preventDefault();
+  },true);
+
+  document.addEventListener('mouseup',function(){
+    if(action){action.el.style.zIndex='';action=null;}
+  },true);
+
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('.mf-draggable')){
+      document.querySelectorAll('.mf-selected').forEach(function(el){el.classList.remove('mf-selected');});
+    }
+  });
+})();
+    `;
+    doc.body.appendChild(scriptEl);
+  }
+
+  async function saveLayoutAndExit() {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) { setLayoutMode(false); return; }
+
+    // Strip editor UI from the DOM before reading HTML
+    doc.getElementById("mf-layout-style")?.remove();
+    doc.getElementById("mf-layout-script")?.remove();
+    doc.querySelectorAll(".mf-drag-handle").forEach((el) => el.remove());
+    doc.querySelectorAll(".mf-resize-se").forEach((el) => el.remove());
+    doc.querySelectorAll(".mf-draggable").forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.paddingTop = htmlEl.dataset.mfOrigPt ?? "";
+      delete htmlEl.dataset.mfOrigPt;
+      htmlEl.classList.remove("mf-draggable", "mf-selected");
+    });
+    doc.querySelectorAll(".mf-page-host").forEach((el) => {
+      el.classList.remove("mf-page-host");
+    });
+
+    const rawHtml = `<!DOCTYPE html>\n` + doc.documentElement.outerHTML;
+    const cleanHtml = stripPreviewInjections(rawHtml);
+
+    pushToUndoHistory(menu?.aiDesignHtml ?? "");
+    setMenu((prev) => prev ? { ...prev, aiDesignHtml: cleanHtml } : prev);
+    await saveAiDesignHtml(cleanHtml);
+    setLayoutMode(false);
+    setPdfKey((k) => k + 1);
+  }
+
   // Re-inject inline editor when iframe loads and editMode is on
   function handleIframeLoad() {
     if (editMode && iframeRef.current) {
@@ -638,6 +847,12 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     if (reorderMode && iframeRef.current) {
       detectSectionsInIframe();
     }
+    // Re-inject layout editor if active
+    if (layoutMode && iframeRef.current) {
+      injectLayoutEditor(iframeRef.current);
+    }
+    // Re-apply zoom after reload
+    applyZoomToIframe(previewZoom);
   }
 
   useEffect(() => {
@@ -651,6 +866,38 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editMode]);
+
+  // Apply zoom whenever it changes (without reloading the iframe)
+  useEffect(() => {
+    applyZoomToIframe(previewZoom);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewZoom]);
+
+  // Inject / remove layout editor when layoutMode toggles
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    if (layoutMode) {
+      injectLayoutEditor(iframeRef.current);
+    } else {
+      // If user exits without saving, just remove injected elements
+      const doc = iframeRef.current.contentDocument;
+      if (!doc) return;
+      doc.getElementById("mf-layout-style")?.remove();
+      doc.getElementById("mf-layout-script")?.remove();
+      doc.querySelectorAll(".mf-drag-handle").forEach((el) => el.remove());
+      doc.querySelectorAll(".mf-resize-se").forEach((el) => el.remove());
+      doc.querySelectorAll(".mf-draggable").forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.paddingTop = htmlEl.dataset.mfOrigPt ?? "";
+        delete htmlEl.dataset.mfOrigPt;
+        htmlEl.classList.remove("mf-draggable", "mf-selected");
+      });
+      doc.querySelectorAll(".mf-page-host").forEach((el) => {
+        el.classList.remove("mf-page-host");
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutMode]);
 
   // ─────────────────────────────────────────
   //  Story 20.1 — Iterative AI prompt
@@ -784,50 +1031,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     if (showSnapshotPanel) fetchSnapshots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSnapshotPanel]);
-
-  // ─────────────────────────────────────────
-  //  Story 20.7 — Design variant
-  // ─────────────────────────────────────────
-
-  async function handleGenerateVariant() {
-    setIsGeneratingVariant(true);
-    setAiError(null);
-    try {
-      const res = await fetch("/api/ai/generate-variant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ menuId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setAiError(data.error ?? "Erreur lors de la génération de la variante");
-        return;
-      }
-      setVariantHtml(data.data.html as string);
-      setActiveView("variant");
-      setVariantWarning(true);
-    } catch {
-      setAiError("Erreur de connexion. Veuillez réessayer.");
-    } finally {
-      setIsGeneratingVariant(false);
-    }
-  }
-
-  async function handleKeepVariant() {
-    if (!variantHtml) return;
-    pushToUndoHistory(variantHtml);
-    applyHtmlWithReload(variantHtml);
-    await saveAiDesignHtml(variantHtml);
-    setVariantHtml(null);
-    setActiveView("original");
-    setVariantWarning(false);
-  }
-
-  function handleDiscardVariant() {
-    setVariantHtml(null);
-    setActiveView("original");
-    setVariantWarning(false);
-  }
 
   // ─────────────────────────────────────────
   //  Story 20.8 — Section reorder
@@ -1081,11 +1284,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     setAiSuccess(false);
     setGenerationStep("analyzing");
     setShowAIPanel(false);
-
-    // Reset variant state on new full generation
-    setVariantHtml(null);
-    setActiveView("original");
-    setVariantWarning(false);
 
     // Reset undo stack for new generation
     undoStackRef.current = [];
@@ -1910,29 +2108,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
         </div>
       )}
 
-      {/* ── Variant warning banner (Story 20.7) ── */}
-      {variantWarning && variantHtml && (
-        <div className="animate-slide-down border-b border-amber-200 bg-amber-50">
-          <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Layers size={14} className="text-amber-600" />
-              <p className="text-sm font-medium text-amber-800">Variante non sauvegardée — sera perdue si vous quittez la page</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleKeepVariant}
-                className="rounded-lg bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700"
-              >
-                Garder la variante
-              </button>
-              <button onClick={handleDiscardVariant} className="rounded-lg px-2 py-1 text-xs text-amber-600 hover:bg-amber-100">
-                Annuler
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ══════════════════ Mobile tab switcher ══════════════════ */}
       <div className="flex border-b border-border bg-white lg:hidden">
         <button
@@ -2071,23 +2246,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                 </a>
               )}
 
-              {/* Variant tabs (Story 20.7) */}
-              {variantHtml && (
-                <div className="flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5">
-                  <button
-                    onClick={() => setActiveView("original")}
-                    className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${activeView === "original" ? "bg-white shadow-sm text-foreground" : "text-muted hover:text-foreground"}`}
-                  >
-                    Original
-                  </button>
-                  <button
-                    onClick={() => setActiveView("variant")}
-                    className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${activeView === "variant" ? "bg-white shadow-sm text-foreground" : "text-muted hover:text-foreground"}`}
-                  >
-                    Variante ✦
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Preview toolbar actions */}
@@ -2239,24 +2397,47 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                     <span className="hidden lg:inline">Réordonner</span>
                   </button>
 
-                  {/* Story 20.7 — Generate variant */}
+                  {/* Layout editor — drag & resize frames */}
                   <button
-                    onClick={handleGenerateVariant}
-                    disabled={isGeneratingVariant}
-                    title="Générer une variante alternative"
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-40"
+                    onClick={() => setLayoutMode(!layoutMode)}
+                    disabled={!iframeRef.current}
+                    title={layoutMode ? "Quitter la mise en page" : "Déplacer et redimensionner les cadres"}
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors ${layoutMode ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface hover:text-foreground"} disabled:opacity-30`}
                   >
-                    {isGeneratingVariant ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Layers size={12} />
-                    )}
-                    <span className="hidden lg:inline">Variante</span>
+                    <ZoomIn size={12} />
+                    <span className="hidden lg:inline">{layoutMode ? "Mise en page ✓" : "Mise en page"}</span>
                   </button>
 
                   <div className="h-4 w-px bg-border" />
                 </>
               )}
+
+              {/* Zoom controls */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => setPreviewZoom((z) => Math.max(0.3, Math.round((z - 0.1) * 10) / 10))}
+                  title="Dézoomer"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground"
+                >
+                  <ZoomOut size={13} />
+                </button>
+                <button
+                  onClick={() => setPreviewZoom(1.0)}
+                  title="Réinitialiser le zoom"
+                  className="min-w-[2.5rem] rounded-lg px-1.5 py-0.5 text-center text-[10px] font-medium tabular-nums text-muted transition-colors hover:bg-surface hover:text-foreground"
+                >
+                  {Math.round(previewZoom * 100)}%
+                </button>
+                <button
+                  onClick={() => setPreviewZoom((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))}
+                  title="Zoomer"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground"
+                >
+                  <ZoomIn size={13} />
+                </button>
+              </div>
+
+              <div className="h-4 w-px bg-border" />
 
               {/* Refresh */}
               <button
@@ -2413,6 +2594,32 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
             </div>
           )}
 
+          {/* ── Layout mode save bar ── */}
+          {layoutMode && isAiMenu && (
+            <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2">
+              <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-white px-4 py-2.5 shadow-xl">
+                <span className="text-xs font-medium text-foreground">
+                  Glissez et redimensionnez les cadres
+                </span>
+                <div className="h-4 w-px bg-border" />
+                <button
+                  onClick={saveLayoutAndExit}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary/90"
+                >
+                  <CheckCircle2 size={12} />
+                  Sauvegarder
+                </button>
+                <button
+                  onClick={() => setLayoutMode(false)}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted transition-colors hover:bg-surface hover:text-foreground"
+                >
+                  <X size={12} />
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── Iterating overlay ── */}
           {isIterating && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
@@ -2429,23 +2636,14 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
           {/* Preview */}
           {hasDishes ? (
             <div className="relative flex-1">
-              {/* Original preview */}
               <iframe
                 key={pdfKey}
                 ref={iframeRef}
                 src={previewSrc}
-                className={`h-full w-full ${variantHtml && activeView === "variant" ? "hidden" : ""}`}
+                className="h-full w-full"
                 title="Aperçu du menu"
                 onLoad={handleIframeLoad}
               />
-              {/* Variant preview (srcDoc) */}
-              {variantHtml && activeView === "variant" && (
-                <iframe
-                  srcDoc={variantHtml}
-                  className="h-full w-full"
-                  title="Variante du menu"
-                />
-              )}
             </div>
           ) : (
             <div className="flex flex-1 items-center justify-center">
