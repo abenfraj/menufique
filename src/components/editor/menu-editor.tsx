@@ -30,6 +30,16 @@ import {
   FileUp,
   Mail,
   Send,
+  Undo2,
+  Redo2,
+  Edit3,
+  Clock,
+  Layers,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { ImportFromUrlModal } from "./import-from-url-modal";
@@ -68,11 +78,17 @@ interface Menu {
   categories: Category[];
 }
 
+interface SnapshotMeta {
+  id: string;
+  label: string;
+  createdAt: string;
+}
+
 type AIStyle = "auto" | "elegant" | "modern" | "rustic" | "minimal" | "colorful";
 type AIColor = "auto" | "warm" | "cool" | "dark" | "pastel";
 type AIComplexity = "simple" | "detailed" | "luxe";
 type AIImageMode = "none" | "emojis";
-type AITab = "options" | "import";
+type AITab = "options" | "import" | "modify";
 
 // ─── Constants ───────────────────────────────
 
@@ -99,6 +115,94 @@ const COMPLEXITY_OPTIONS: { value: AIComplexity; label: string; desc: string; ic
   { value: "luxe", label: "Luxe", desc: "Spectaculaire", icon: "✦" },
 ];
 
+// Story 20.4 — 8 palette presets
+const PALETTE_PRESETS = [
+  { name: "Orange signature", color: "#FF6B35" },
+  { name: "Rouge bordeaux", color: "#8B2635" },
+  { name: "Vert forêt", color: "#2D5A27" },
+  { name: "Bleu ardoise", color: "#2C4A6E" },
+  { name: "Or champagne", color: "#C9A96E" },
+  { name: "Noir élégant", color: "#1C1C1C" },
+  { name: "Rose poudré", color: "#C4748A" },
+  { name: "Terracotta", color: "#B85C38" },
+];
+
+// Story 20.1 — Quick suggestion prompts
+const ITERATE_SUGGESTIONS = [
+  "Rends les titres de catégories plus grands",
+  "Change la couleur principale en vert forêt",
+  "Ajoute une ligne décorative entre les sections",
+  "Mets le nom du restaurant en italique",
+];
+
+// Story 20.5 — 7 font pair presets
+interface FontPair {
+  name: string;
+  display: string;
+  body: string;
+  preview: string;
+  googleFontsUrl: string;
+}
+
+const FONT_PRESETS: FontPair[] = [
+  {
+    name: "Classique raffiné",
+    display: "Playfair Display",
+    body: "Lato",
+    preview: "Gastronomique",
+    googleFontsUrl:
+      "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Lato:wght@300;400;700&display=swap",
+  },
+  {
+    name: "Moderne épuré",
+    display: "Montserrat",
+    body: "Open Sans",
+    preview: "Contemporain",
+    googleFontsUrl:
+      "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@300;400;600&display=swap",
+  },
+  {
+    name: "Rustique chaleureux",
+    display: "Libre Baskerville",
+    body: "Source Sans 3",
+    preview: "Bistrot",
+    googleFontsUrl:
+      "https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@300;400;600&display=swap",
+  },
+  {
+    name: "Élégance minimale",
+    display: "Cormorant Garamond",
+    body: "Inter",
+    preview: "Luxe sobre",
+    googleFontsUrl:
+      "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500&display=swap",
+  },
+  {
+    name: "Festif audacieux",
+    display: "Abril Fatface",
+    body: "Nunito",
+    preview: "Brasserie animée",
+    googleFontsUrl:
+      "https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Nunito:wght@300;400;600;700&display=swap",
+  },
+  {
+    name: "Art déco",
+    display: "Poiret One",
+    body: "Josefin Sans",
+    preview: "Années folles",
+    googleFontsUrl:
+      "https://fonts.googleapis.com/css2?family=Poiret+One&family=Josefin+Sans:wght@300;400;600&display=swap",
+  },
+  {
+    name: "Contemporain tech",
+    display: "DM Sans",
+    body: "DM Sans",
+    preview: "Startup food",
+    googleFontsUrl:
+      "https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap",
+  },
+];
+
 // ─── Generation progress steps ──────────────
 
 type GenerationStep = "analyzing" | "reading" | "designing" | "styling" | "coding" | "cover" | "saving" | "done";
@@ -114,6 +218,43 @@ const GENERATION_STEPS: { key: GenerationStep; label: string; sublabel: string; 
   { key: "done",      label: "Design terminé !",               sublabel: "Votre menu est prêt",                    progress: 100 },
 ];
 
+// ─── Helpers ─────────────────────────────────
+
+/** Detect the most prominent non-neutral hex color in an HTML string */
+function detectPrimaryColor(html: string): string | null {
+  const hexMatches = html.match(/#[0-9A-Fa-f]{6}\b/g) ?? [];
+  const freq = new Map<string, number>();
+  for (const h of hexMatches) {
+    const upper = h.toUpperCase();
+    freq.set(upper, (freq.get(upper) ?? 0) + 1);
+  }
+  const candidates = [...freq.entries()]
+    .filter(([hex]) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      if (r > 220 && g > 220 && b > 220) return false; // near-white
+      if (r < 35 && g < 35 && b < 35) return false;    // near-black
+      if (Math.max(r, g, b) - Math.min(r, g, b) < 30) return false; // grey
+      return true;
+    })
+    .sort((a, b) => b[1] - a[1]);
+  return candidates[0]?.[0] ?? null;
+}
+
+/** Replace all occurrences of a hex color in HTML (case-insensitive) */
+function replaceHexColor(html: string, from: string, to: string): string {
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return html.replace(new RegExp(escaped, "gi"), to.toUpperCase());
+}
+
+/** Strip preview injections before saving back to DB */
+function stripPreviewInjections(html: string): string {
+  return html
+    .replace(/<style id="preview-normalizer">[\s\S]*?<\/style>/i, "")
+    .replace(/<script data-mf-scaler="1">[\s\S]*?<\/script>/i, "");
+}
+
 // ─── Component ───────────────────────────────
 
 interface MenuEditorProps {
@@ -124,6 +265,10 @@ interface MenuEditorProps {
 export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const palettePopoverRef = useRef<HTMLDivElement>(null);
+  const fontPopoverRef = useRef<HTMLDivElement>(null);
+
   const [showJsonImport, setShowJsonImport] = useState(false);
   const [jsonText, setJsonText] = useState("");
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -160,8 +305,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   const [importPreview, setImportPreview] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedText, setExtractedText] = useState<string | null>(null);
-
-  // URL import state
   const [showImportUrlModal, setShowImportUrlModal] = useState(false);
 
   // Mobile tab state
@@ -173,6 +316,52 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   const [isSharingEmail, setIsSharingEmail] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
+
+  // ── Story 20.3 — Undo / Redo ──────────────
+  const undoStackRef = useRef<string[]>([]);
+  const undoIndexRef = useRef<number>(-1);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [undoPosition, setUndoPosition] = useState(""); // e.g. "3/7"
+
+  // ── Story 20.4 — Palette swap ─────────────
+  const [showPalettePopover, setShowPalettePopover] = useState(false);
+
+  // ── Story 20.5 — Font swap ────────────────
+  const [showFontPopover, setShowFontPopover] = useState(false);
+
+  // ── Story 20.2 — Inline editing ──────────
+  const [editMode, setEditMode] = useState(false);
+
+  // ── Story 20.1 — Iterative AI ────────────
+  const [iteratePrompt, setIteratePrompt] = useState("");
+  const [isIterating, setIsIterating] = useState(false);
+  const [iterateError, setIterateError] = useState<string | null>(null);
+  const [iterateSuccess, setIterateSuccess] = useState(false);
+
+  // ── Story 20.6 — Snapshot history ────────
+  const [showSnapshotPanel, setShowSnapshotPanel] = useState(false);
+  const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
+  const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
+  const [snapshotLabelInput, setSnapshotLabelInput] = useState("");
+  const [renamingSnapId, setRenamingSnapId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmDeleteSnapId, setConfirmDeleteSnapId] = useState<string | null>(null);
+
+  // ── Story 20.7 — Design variant ──────────
+  const [variantHtml, setVariantHtml] = useState<string | null>(null);
+  const [isGeneratingVariant, setIsGeneratingVariant] = useState(false);
+  const [activeView, setActiveView] = useState<"original" | "variant">("original");
+  const [variantWarning, setVariantWarning] = useState(false);
+
+  // ── Story 20.8 — Section reorder ─────────
+  const [reorderMode, setReorderMode] = useState(false);
+  const [detectedSections, setDetectedSections] = useState<string[]>([]);
+
+  // ─────────────────────────────────────────
+  //  Data fetching
+  // ─────────────────────────────────────────
 
   const fetchMenu = useCallback(async () => {
     try {
@@ -195,13 +384,558 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     fetchMenu();
   }, [fetchMenu]);
 
-  // Auto-dismiss success message
+  // Initialize undo stack with current AI HTML when menu loads
+  useEffect(() => {
+    if (menu?.aiDesignHtml && undoStackRef.current.length === 0) {
+      undoStackRef.current = [menu.aiDesignHtml];
+      undoIndexRef.current = 0;
+      setCanUndo(false);
+      setCanRedo(false);
+      setUndoPosition("");
+    }
+  }, [menu?.aiDesignHtml]);
+
+  // Auto-dismiss success messages
   useEffect(() => {
     if (aiSuccess) {
       const t = setTimeout(() => setAiSuccess(false), 4000);
       return () => clearTimeout(t);
     }
   }, [aiSuccess]);
+
+  useEffect(() => {
+    if (iterateSuccess) {
+      const t = setTimeout(() => setIterateSuccess(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [iterateSuccess]);
+
+  // Close popovers when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        palettePopoverRef.current &&
+        !palettePopoverRef.current.contains(e.target as Node)
+      ) {
+        setShowPalettePopover(false);
+      }
+      if (
+        fontPopoverRef.current &&
+        !fontPopoverRef.current.contains(e.target as Node)
+      ) {
+        setShowFontPopover(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ─────────────────────────────────────────
+  //  Story 20.3 — Undo / Redo helpers
+  // ─────────────────────────────────────────
+
+  function pushToUndoHistory(html: string) {
+    const stack = undoStackRef.current.slice(0, undoIndexRef.current + 1);
+    stack.push(html);
+    if (stack.length > 20) stack.shift();
+    undoStackRef.current = stack;
+    undoIndexRef.current = stack.length - 1;
+    const idx = undoIndexRef.current;
+    const total = stack.length;
+    setCanUndo(idx > 0);
+    setCanRedo(false);
+    setUndoPosition(total > 1 ? `${idx + 1}/${total}` : "");
+  }
+
+  function applyHtmlWithReload(html: string) {
+    setMenu((prev) => (prev ? { ...prev, aiDesignHtml: html } : prev));
+    setPdfKey((k) => k + 1);
+  }
+
+  async function saveAiDesignHtml(html: string) {
+    await fetch(`/api/menus/${menuId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aiDesignHtml: html }),
+    });
+  }
+
+  function syncUndoState() {
+    const idx = undoIndexRef.current;
+    const total = undoStackRef.current.length;
+    setCanUndo(idx > 0);
+    setCanRedo(idx < total - 1);
+    setUndoPosition(total > 1 ? `${idx + 1}/${total}` : "");
+  }
+
+  function undo() {
+    if (undoIndexRef.current <= 0) return;
+    undoIndexRef.current--;
+    const html = undoStackRef.current[undoIndexRef.current];
+    applyHtmlWithReload(html);
+    saveAiDesignHtml(html);
+    syncUndoState();
+  }
+
+  function redo() {
+    if (undoIndexRef.current >= undoStackRef.current.length - 1) return;
+    undoIndexRef.current++;
+    const html = undoStackRef.current[undoIndexRef.current];
+    applyHtmlWithReload(html);
+    saveAiDesignHtml(html);
+    syncUndoState();
+  }
+
+  // Keyboard shortcuts for undo/redo
+  const undoRef = useRef(undo);
+  const redoRef = useRef(redo);
+  undoRef.current = undo;
+  redoRef.current = redo;
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const isUndo =
+        (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "z";
+      const isRedo =
+        (e.ctrlKey || e.metaKey) &&
+        (e.shiftKey ? e.key === "z" : e.key === "y");
+      if (isUndo) { e.preventDefault(); undoRef.current(); }
+      else if (isRedo) { e.preventDefault(); redoRef.current(); }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // ─────────────────────────────────────────
+  //  Story 20.4 — Palette swap
+  // ─────────────────────────────────────────
+
+  async function handleSwapColor(newColor: string) {
+    if (!menu?.aiDesignHtml) return;
+    const primaryColor = detectPrimaryColor(menu.aiDesignHtml);
+    if (!primaryColor) {
+      setAiError("Impossible de détecter la couleur principale du design.");
+      return;
+    }
+    const newHtml = replaceHexColor(menu.aiDesignHtml, primaryColor, newColor);
+    pushToUndoHistory(newHtml);
+    applyHtmlWithReload(newHtml);
+    setShowPalettePopover(false);
+    await saveAiDesignHtml(newHtml);
+  }
+
+  // ─────────────────────────────────────────
+  //  Story 20.5 — Font swap
+  // ─────────────────────────────────────────
+
+  async function handleSwapFont(pair: FontPair) {
+    if (!menu?.aiDesignHtml) return;
+    let newHtml = menu.aiDesignHtml;
+
+    // 1. Replace Google Fonts link
+    newHtml = newHtml.replace(
+      /https:\/\/fonts\.googleapis\.com\/css2\?[^"']*/,
+      pair.googleFontsUrl
+    );
+
+    // 2. Detect current display font (first quoted font-family in the CSS block)
+    const fontMatch = newHtml.match(/font-family\s*:\s*['"]([^'"]+)['"]/);
+    const currentDisplayFont = fontMatch?.[1];
+    if (currentDisplayFont && currentDisplayFont !== pair.display) {
+      newHtml = newHtml.replace(
+        new RegExp(`(['"])${currentDisplayFont.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\1`, "g"),
+        `'${pair.display}'`
+      );
+    }
+
+    pushToUndoHistory(newHtml);
+    applyHtmlWithReload(newHtml);
+    setShowFontPopover(false);
+    await saveAiDesignHtml(newHtml);
+  }
+
+  // ─────────────────────────────────────────
+  //  Story 20.2 — Inline editing
+  // ─────────────────────────────────────────
+
+  function injectInlineEditor(iframe: HTMLIFrameElement) {
+    const doc = iframe.contentDocument;
+    if (!doc) return;
+
+    const editableSelectors = [
+      "h1", "h2", "h3", "h4",
+      ".dish-name", ".dish-price", ".dish-description",
+      "p", "span",
+    ].join(",");
+
+    doc.querySelectorAll<HTMLElement>(editableSelectors).forEach((el) => {
+      if (el.querySelector(editableSelectors)) return; // skip parent containers
+      el.setAttribute("data-mf-editable", "1");
+      el.style.cursor = "text";
+      el.title = "Double-clic pour modifier";
+
+      el.addEventListener("dblclick", () => startInlineEdit(el, iframe));
+
+      el.addEventListener("mouseenter", () => {
+        if (el.getAttribute("data-mf-editable")) {
+          el.style.outline = "1px dashed rgba(255,107,53,0.4)";
+          el.style.outlineOffset = "2px";
+        }
+      });
+      el.addEventListener("mouseleave", () => {
+        if (!el.isContentEditable) {
+          el.style.outline = "";
+          el.style.outlineOffset = "";
+        }
+      });
+    });
+  }
+
+  function startInlineEdit(el: HTMLElement, iframe: HTMLIFrameElement) {
+    const original = el.textContent ?? "";
+    el.setAttribute("contenteditable", "true");
+    el.style.outline = "2px solid #FF6B35";
+    el.style.outlineOffset = "2px";
+    el.style.borderRadius = "3px";
+    el.focus();
+
+    function commit() {
+      el.removeAttribute("contenteditable");
+      el.style.outline = "";
+      el.style.outlineOffset = "";
+      el.style.borderRadius = "";
+      if (el.textContent === original) return;
+      const rawHtml = iframe.contentDocument?.documentElement.outerHTML ?? "";
+      const newHtml = stripPreviewInjections(rawHtml);
+      setMenu((prev) => (prev ? { ...prev, aiDesignHtml: newHtml } : prev));
+      pushToUndoHistory(newHtml);
+      saveAiDesignHtml(newHtml);
+    }
+
+    el.addEventListener("blur", commit, { once: true });
+    el.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          el.blur();
+        }
+        if (e.key === "Escape") {
+          el.textContent = original;
+          el.blur();
+        }
+      },
+      { once: true }
+    );
+  }
+
+  // Re-inject inline editor when iframe loads and editMode is on
+  function handleIframeLoad() {
+    if (editMode && iframeRef.current) {
+      injectInlineEditor(iframeRef.current);
+    }
+    // Also detect sections for reorder mode
+    if (reorderMode && iframeRef.current) {
+      detectSectionsInIframe();
+    }
+  }
+
+  useEffect(() => {
+    if (editMode && iframeRef.current) {
+      // Attempt to inject if iframe is already loaded
+      try {
+        injectInlineEditor(iframeRef.current);
+      } catch {
+        // Will be injected on next onLoad
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode]);
+
+  // ─────────────────────────────────────────
+  //  Story 20.1 — Iterative AI prompt
+  // ─────────────────────────────────────────
+
+  async function handleIterateDesign() {
+    if (!iteratePrompt.trim() || !menu?.aiDesignHtml) return;
+    setIsIterating(true);
+    setIterateError(null);
+    setIterateSuccess(false);
+    try {
+      const res = await fetch("/api/ai/iterate-design", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ menuId, prompt: iteratePrompt }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setIterateError(data.error ?? "Erreur lors de la modification");
+        return;
+      }
+      const newHtml = data.data.html as string;
+      pushToUndoHistory(newHtml);
+      applyHtmlWithReload(newHtml);
+      setIteratePrompt("");
+      setIterateSuccess(true);
+    } catch {
+      setIterateError("Erreur de connexion. Veuillez réessayer.");
+    } finally {
+      setIsIterating(false);
+    }
+  }
+
+  // ─────────────────────────────────────────
+  //  Story 20.6 — Snapshot history
+  // ─────────────────────────────────────────
+
+  async function fetchSnapshots() {
+    if (!menu?.aiDesignHtml) return;
+    setIsLoadingSnapshots(true);
+    try {
+      const res = await fetch(`/api/menus/${menuId}/snapshots`);
+      const data = await res.json();
+      if (res.ok) setSnapshots(data.data ?? []);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingSnapshots(false);
+    }
+  }
+
+  async function handleCreateSnapshot() {
+    if (!menu?.aiDesignHtml) return;
+    setIsSavingSnapshot(true);
+    try {
+      const res = await fetch(`/api/menus/${menuId}/snapshots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: snapshotLabelInput.trim() || undefined }),
+      });
+      if (res.ok) {
+        setSnapshotLabelInput("");
+        await fetchSnapshots();
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsSavingSnapshot(false);
+    }
+  }
+
+  async function handleRestoreSnapshot(snapId: string) {
+    try {
+      const res = await fetch(
+        `/api/menus/${menuId}/snapshots/${snapId}/restore`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        const html = data.data.html as string;
+        pushToUndoHistory(html);
+        applyHtmlWithReload(html);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleDeleteSnapshot(snapId: string) {
+    try {
+      await fetch(`/api/menus/${menuId}/snapshots/${snapId}`, {
+        method: "DELETE",
+      });
+      setSnapshots((prev) => prev.filter((s) => s.id !== snapId));
+      setConfirmDeleteSnapId(null);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleRenameSnapshot(snapId: string) {
+    if (!renameValue.trim()) return;
+    try {
+      await fetch(`/api/menus/${menuId}/snapshots/${snapId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: renameValue }),
+      });
+      setSnapshots((prev) =>
+        prev.map((s) => (s.id === snapId ? { ...s, label: renameValue } : s))
+      );
+      setRenamingSnapId(null);
+      setRenameValue("");
+    } catch {
+      // ignore
+    }
+  }
+
+  async function autoSnapshotBeforeGeneration() {
+    if (!menu?.aiDesignHtml) return;
+    await fetch(`/api/menus/${menuId}/snapshots`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        label: `Génération du ${new Date().toLocaleDateString("fr-FR")}`,
+      }),
+    });
+  }
+
+  useEffect(() => {
+    if (showSnapshotPanel) fetchSnapshots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSnapshotPanel]);
+
+  // ─────────────────────────────────────────
+  //  Story 20.7 — Design variant
+  // ─────────────────────────────────────────
+
+  async function handleGenerateVariant() {
+    setIsGeneratingVariant(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/ai/generate-variant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ menuId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error ?? "Erreur lors de la génération de la variante");
+        return;
+      }
+      setVariantHtml(data.data.html as string);
+      setActiveView("variant");
+      setVariantWarning(true);
+    } catch {
+      setAiError("Erreur de connexion. Veuillez réessayer.");
+    } finally {
+      setIsGeneratingVariant(false);
+    }
+  }
+
+  async function handleKeepVariant() {
+    if (!variantHtml) return;
+    pushToUndoHistory(variantHtml);
+    applyHtmlWithReload(variantHtml);
+    await saveAiDesignHtml(variantHtml);
+    setVariantHtml(null);
+    setActiveView("original");
+    setVariantWarning(false);
+  }
+
+  function handleDiscardVariant() {
+    setVariantHtml(null);
+    setActiveView("original");
+    setVariantWarning(false);
+  }
+
+  // ─────────────────────────────────────────
+  //  Story 20.8 — Section reorder
+  // ─────────────────────────────────────────
+
+  function detectSectionsInIframe() {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+    const selectors = [
+      "[class*='category']",
+      "[class*='section']",
+      "[class*='menu-section']",
+      "[data-category]",
+      ".category",
+      ".section",
+    ];
+    for (const sel of selectors) {
+      const found = [...doc.querySelectorAll(sel)];
+      if (found.length >= 2) {
+        setDetectedSections(
+          found.map((el, i) => {
+            const heading = el.querySelector("h2,h3,h4");
+            return heading?.textContent?.trim() || `Section ${i + 1}`;
+          })
+        );
+        return;
+      }
+    }
+    setDetectedSections([]);
+  }
+
+  function moveSectionUp(index: number) {
+    if (index === 0) return;
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+
+    const selectors = [
+      "[class*='category']",
+      "[class*='section']",
+      "[class*='menu-section']",
+      ".category",
+      ".section",
+    ];
+    let sections: Element[] = [];
+    for (const sel of selectors) {
+      const found = [...doc.querySelectorAll(sel)];
+      if (found.length >= 2) { sections = found; break; }
+    }
+    if (sections.length < 2) return;
+
+    const el = sections[index];
+    const prev = sections[index - 1];
+    el.parentNode?.insertBefore(el, prev);
+
+    const newHtml = stripPreviewInjections(
+      doc.documentElement.outerHTML
+    );
+    setMenu((prev) => (prev ? { ...prev, aiDesignHtml: newHtml } : prev));
+    pushToUndoHistory(newHtml);
+    saveAiDesignHtml(newHtml);
+    // Update detected names
+    const newNames = [...detectedSections];
+    [newNames[index - 1], newNames[index]] = [newNames[index], newNames[index - 1]];
+    setDetectedSections(newNames);
+  }
+
+  function moveSectionDown(index: number) {
+    if (index >= detectedSections.length - 1) return;
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+
+    const selectors = [
+      "[class*='category']",
+      "[class*='section']",
+      "[class*='menu-section']",
+      ".category",
+      ".section",
+    ];
+    let sections: Element[] = [];
+    for (const sel of selectors) {
+      const found = [...doc.querySelectorAll(sel)];
+      if (found.length >= 2) { sections = found; break; }
+    }
+    if (sections.length < 2) return;
+
+    const el = sections[index];
+    const next = sections[index + 1];
+    next.parentNode?.insertBefore(next, el);
+
+    const newHtml = stripPreviewInjections(
+      doc.documentElement.outerHTML
+    );
+    setMenu((prev) => (prev ? { ...prev, aiDesignHtml: newHtml } : prev));
+    pushToUndoHistory(newHtml);
+    saveAiDesignHtml(newHtml);
+    const newNames = [...detectedSections];
+    [newNames[index], newNames[index + 1]] = [newNames[index + 1], newNames[index]];
+    setDetectedSections(newNames);
+  }
+
+  useEffect(() => {
+    if (reorderMode) detectSectionsInIframe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reorderMode]);
+
+  // ─────────────────────────────────────────
+  //  Standard CRUD handlers
+  // ─────────────────────────────────────────
 
   async function handleSaveName() {
     if (!menuName.trim() || menuName === menu?.name) return;
@@ -320,9 +1054,7 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data.upgrade) {
-          setAiError(null);
           setShowTemplateSelector(false);
-          // Redirect to billing
           window.location.href = "/dashboard/billing";
           return;
         }
@@ -339,11 +1071,29 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   }
 
   async function handleGenerateAI() {
+    // Auto-snapshot before new generation (Story 20.6)
+    if (menu?.aiDesignHtml) {
+      await autoSnapshotBeforeGeneration();
+    }
+
     setIsGeneratingAI(true);
     setAiError(null);
     setAiSuccess(false);
     setGenerationStep("analyzing");
     setShowAIPanel(false);
+
+    // Reset variant state on new full generation
+    setVariantHtml(null);
+    setActiveView("original");
+    setVariantWarning(false);
+
+    // Reset undo stack for new generation
+    undoStackRef.current = [];
+    undoIndexRef.current = -1;
+    setCanUndo(false);
+    setCanRedo(false);
+    setUndoPosition("");
+
     try {
       setTimeout(() => setGenerationStep("reading"),   1800);
       setTimeout(() => setGenerationStep("designing"), 4000);
@@ -387,7 +1137,17 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       setExtractedText(null);
       setImportFile(null);
       setImportPreview(null);
-      fetchMenu();
+
+      fetchMenu().then(() => {
+        // Push initial undo state after generation
+        if (data.design?.html) {
+          undoStackRef.current = [data.design.html];
+          undoIndexRef.current = 0;
+          setCanUndo(false);
+          setCanRedo(false);
+          setUndoPosition("");
+        }
+      });
       setPdfKey((k) => k + 1);
     } catch {
       setAiError("Erreur de connexion. Veuillez réessayer.");
@@ -399,7 +1159,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     if (!allowed.includes(file.type)) {
       setAiError("Format non supporté. Utilisez JPG, PNG ou WebP.");
@@ -409,10 +1168,8 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       setAiError("Fichier trop volumineux (max 10 Mo)");
       return;
     }
-
     setImportFile(file);
     setExtractedText(null);
-
     const reader = new FileReader();
     reader.onload = () => setImportPreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -448,18 +1205,15 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
     try {
       const formData = new FormData();
       formData.append("file", importFile);
-
       const res = await fetch("/api/ai/extract-menu", {
         method: "POST",
         body: formData,
       });
       const json = await res.json();
-
       if (!res.ok) {
         setAiError(json.error ?? "Erreur lors de l'extraction");
         return;
       }
-
       setExtractedText(json.data.extractedText);
     } catch {
       setAiError("Erreur de connexion. Veuillez réessayer.");
@@ -467,6 +1221,10 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       setIsExtracting(false);
     }
   }
+
+  // ─────────────────────────────────────────
+  //  Render guards
+  // ─────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -483,20 +1241,27 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
   const isPro = userPlan === "PRO";
   const hasDishes = menu.categories.some((c) => c.dishes.length > 0);
+  const isAiMenu = menu.templateId === "ai-custom" && !!menu.aiDesignHtml;
 
   // ─── Ring progress computation ───────────────
   const currentStepInfo = GENERATION_STEPS.find((s) => s.key === generationStep);
   const generationProgress = currentStepInfo?.progress ?? 0;
   const RING_R = 80;
-  const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R; // ≈ 502.65
+  const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R;
   const ringDashOffset = RING_CIRCUMFERENCE * (1 - generationProgress / 100);
   const tipRotationDeg = (generationProgress / 100) * 360;
   const visibleSteps = GENERATION_STEPS.filter((s) => s.key !== "cover" || aiIncludeCoverPage);
   const currentStepIdx = visibleSteps.findIndex((s) => s.key === generationStep);
 
+  // Detected primary color
+  const detectedColor = isAiMenu ? detectPrimaryColor(menu.aiDesignHtml!) : null;
+
+  // Current preview src
+  const previewSrc = `/api/menus/${menuId}/preview`;
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────── */}
       <header className="sticky top-0 z-20 border-b border-border bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-4">
           {/* Left: back + name */}
@@ -523,7 +1288,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
 
           {/* Right: actions */}
           <div className="flex shrink-0 items-center gap-1.5">
-            {/* Template */}
             <button
               onClick={() => { setShowTemplateSelector(!showTemplateSelector); setShowAIPanel(false); }}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-all ${
@@ -536,7 +1300,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
               <span className="hidden sm:inline">Template</span>
             </button>
 
-            {/* PDF */}
             <button
               onClick={handleDownloadPdf}
               disabled={isDownloadingPdf || !hasDishes}
@@ -547,7 +1310,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
               <span className="hidden sm:inline">{isDownloadingPdf ? "PDF..." : "PDF"}</span>
             </button>
 
-            {/* Share */}
             {menu.isPublished && (
               <button
                 onClick={() => { setShowShareModal(true); setShareError(null); setShareSuccess(false); }}
@@ -558,10 +1320,8 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
               </button>
             )}
 
-            {/* Divider */}
             <div className="h-5 w-px bg-border" />
 
-            {/* Publish */}
             <button
               onClick={handleTogglePublish}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
@@ -570,23 +1330,16 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                   : "bg-primary text-white hover:bg-primary-hover"
               }`}
             >
-              {menu.isPublished ? (
-                <>
-                  <Globe size={13} />
-                  <span className="hidden sm:inline">Publié</span>
-                </>
-              ) : (
-                <>
-                  <Globe size={13} />
-                  <span className="hidden sm:inline">Publier</span>
-                </>
-              )}
+              <Globe size={13} />
+              <span className="hidden sm:inline">
+                {menu.isPublished ? "Publié" : "Publier"}
+              </span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Template selector dropdown */}
+      {/* Template selector */}
       {showTemplateSelector && (
         <div className="animate-slide-down border-b border-border bg-white">
           <div className="mx-auto flex max-w-[1600px] gap-2 overflow-x-auto px-3 py-2">
@@ -615,13 +1368,10 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       {/* ══════════════════ AI Right Drawer ══════════════════ */}
       {showAIPanel && (
         <>
-          {/* Backdrop */}
           <div
             className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]"
             onClick={() => setShowAIPanel(false)}
           />
-
-          {/* Drawer */}
           <div className="animate-slide-in-right fixed bottom-0 right-0 top-0 z-50 flex w-full flex-col bg-white shadow-2xl sm:w-[440px]">
             {/* Drawer header */}
             <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
@@ -646,26 +1396,39 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
             <div className="flex shrink-0 border-b border-border">
               <button
                 onClick={() => setAiTab("options")}
-                className={`flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+                className={`flex flex-1 items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
                   aiTab === "options"
                     ? "border-b-2 border-primary text-primary"
                     : "text-muted hover:text-foreground"
                 }`}
               >
-                <Sparkles size={14} />
+                <Sparkles size={13} />
                 Nouveau design
               </button>
               <button
                 onClick={() => setAiTab("import")}
-                className={`flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+                className={`flex flex-1 items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
                   aiTab === "import"
                     ? "border-b-2 border-primary text-primary"
                     : "text-muted hover:text-foreground"
                 }`}
               >
-                <Upload size={14} />
-                Importer un menu
+                <Upload size={13} />
+                Importer
               </button>
+              {isAiMenu && (
+                <button
+                  onClick={() => setAiTab("modify")}
+                  className={`flex flex-1 items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
+                    aiTab === "modify"
+                      ? "border-b-2 border-primary text-primary"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  <Edit3 size={13} />
+                  Modifier
+                </button>
+              )}
             </div>
 
             {/* Scrollable content */}
@@ -854,7 +1617,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                     <p className="mt-1 text-right text-xs text-muted">{aiCustomInstructions.length}/500</p>
                   </div>
 
-                  {/* Extracted text indicator */}
                   {extractedText && (
                     <div className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2.5 text-sm text-green-700">
                       <CheckCircle2 size={15} />
@@ -914,11 +1676,7 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                   )}
 
                   {importFile && !extractedText && (
-                    <Button
-                      onClick={handleExtractMenu}
-                      disabled={isExtracting}
-                      className="w-full rounded-xl"
-                    >
+                    <Button onClick={handleExtractMenu} disabled={isExtracting} className="w-full rounded-xl">
                       {isExtracting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                       {isExtracting ? "Extraction en cours..." : "Extraire le contenu"}
                     </Button>
@@ -942,17 +1700,76 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                           <Sparkles size={13} />
                           Redesigner avec l&apos;IA
                         </Button>
-                        <Button
-                          onClick={() => setExtractedText(null)}
-                          size="sm"
-                          variant="ghost"
-                          className="rounded-xl"
-                        >
+                        <Button onClick={() => setExtractedText(null)} size="sm" variant="ghost" className="rounded-xl">
                           Effacer
                         </Button>
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── Tab: Modify (Story 20.1) ── */}
+              {aiTab === "modify" && isAiMenu && (
+                <div className="space-y-4 p-5">
+                  <p className="text-sm text-muted">
+                    Décrivez une modification en langage naturel. L&apos;IA l&apos;applique sur votre design sans tout régénérer.
+                  </p>
+
+                  {/* Quick suggestions */}
+                  <div className="flex flex-wrap gap-2">
+                    {ITERATE_SUGGESTIONS.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setIteratePrompt(s)}
+                        className="rounded-full border border-border bg-white px-3 py-1 text-xs text-muted transition-colors hover:border-primary/40 hover:text-foreground"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    value={iteratePrompt}
+                    onChange={(e) => setIteratePrompt(e.target.value)}
+                    placeholder="Ex: Rends les titres plus grands, change le fond en crème..."
+                    maxLength={300}
+                    rows={4}
+                    className="w-full resize-none rounded-xl border border-border bg-white px-3 py-2.5 text-sm text-foreground placeholder:text-muted/40 focus:border-primary focus:outline-none"
+                  />
+                  <p className="mt-1 text-right text-xs text-muted">{iteratePrompt.length}/300</p>
+
+                  {iterateError && (
+                    <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
+                      <AlertCircle size={14} />
+                      {iterateError}
+                    </div>
+                  )}
+                  {iterateSuccess && (
+                    <div className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700">
+                      <CheckCircle2 size={14} />
+                      Modification appliquée !
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleIterateDesign}
+                    disabled={isIterating || !iteratePrompt.trim()}
+                    className="w-full rounded-xl"
+                  >
+                    {isIterating ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        Application en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 size={15} />
+                        Appliquer la modification
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-center text-xs text-muted">Modification en ~3 secondes · 3 requêtes/min</p>
                 </div>
               )}
             </div>
@@ -985,14 +1802,9 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       {isGeneratingAI && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="animate-scale-in mx-4 w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
-
-            {/* Top section — ring */}
             <div className="relative overflow-hidden bg-gradient-to-br from-orange-50 via-white to-amber-50/60 px-6 pb-6 pt-6">
-              {/* Decorative background circles */}
               <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full border border-primary/8" />
               <div className="pointer-events-none absolute -right-7 -top-7 h-28 w-28 rounded-full border border-primary/12" />
-
-              {/* Header */}
               <div className="relative mb-5 flex items-center gap-3">
                 <div className="animate-pulse-glow flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-orange-500 shadow-md shadow-primary/30">
                   <Wand2 size={17} className="text-white" />
@@ -1002,16 +1814,9 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                   <p className="text-xs text-muted">Veuillez patienter quelques instants</p>
                 </div>
               </div>
-
-              {/* Circular progress ring */}
               <div className="relative flex justify-center">
                 <div className="relative">
-                  <svg
-                    width="180" height="180"
-                    viewBox="0 0 200 200"
-                    className="overflow-visible"
-                    aria-hidden="true"
-                  >
+                  <svg width="180" height="180" viewBox="0 0 200 200" className="overflow-visible" aria-hidden="true">
                     <defs>
                       <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#FF6B35" />
@@ -1025,14 +1830,8 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                         </feMerge>
                       </filter>
                     </defs>
-
-                    {/* Outer pulse ring */}
                     <circle cx="100" cy="100" r="94" fill="none" stroke="#FF6B35" strokeWidth="1" opacity="0.15" className="animate-pulse" />
-
-                    {/* Track */}
                     <circle cx="100" cy="100" r={RING_R} fill="none" stroke="#F0ECE8" strokeWidth="13" />
-
-                    {/* Progress arc */}
                     <circle
                       cx="100" cy="100" r={RING_R}
                       fill="none"
@@ -1045,89 +1844,39 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                       filter="url(#glow-filter)"
                       style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }}
                     />
-
-                    {/* Glowing tip dot — rotates around center instead of lerping cx/cy */}
                     {generationProgress > 2 && (
-                      <g
-                        style={{
-                          transformOrigin: "100px 100px",
-                          transform: `rotate(${tipRotationDeg}deg)`,
-                          transition: "transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                        }}
-                      >
-                        {/* Outer glow halo */}
+                      <g style={{ transformOrigin: "100px 100px", transform: `rotate(${tipRotationDeg}deg)`, transition: "transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }}>
                         <circle cx="100" cy={100 - RING_R} r="10" fill="#FF6B35" opacity="0.25" />
-                        {/* Main dot */}
                         <circle cx="100" cy={100 - RING_R} r="7" fill="#FF6B35" filter="url(#glow-filter)" />
-                        {/* Inner white gleam */}
                         <circle cx="100" cy={100 - RING_R} r="3" fill="white" opacity="0.9" />
                       </g>
                     )}
                   </svg>
-
-                  {/* Centered percentage */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span
-                      className="text-4xl font-bold tabular-nums text-foreground"
-                      style={{ transition: "all 0.8s ease" }}
-                    >
+                    <span className="text-4xl font-bold tabular-nums text-foreground" style={{ transition: "all 0.8s ease" }}>
                       {generationProgress}
                     </span>
                     <span className="text-sm font-medium text-muted">%</span>
                   </div>
                 </div>
               </div>
-
-              {/* Current step label */}
               <div className="mt-4 text-center">
-                <p className="text-sm font-semibold text-foreground" style={{ transition: "all 0.4s ease" }}>
-                  {currentStepInfo?.label}
-                </p>
-                <p className="mt-0.5 text-xs text-muted" style={{ transition: "all 0.4s ease" }}>
-                  {currentStepInfo?.sublabel}
-                </p>
+                <p className="text-sm font-semibold text-foreground">{currentStepInfo?.label}</p>
+                <p className="mt-0.5 text-xs text-muted">{currentStepInfo?.sublabel}</p>
               </div>
             </div>
-
-            {/* Step list */}
             <div className="space-y-2 px-6 py-5">
               {visibleSteps.filter((s) => s.key !== "done").map((step, idx) => {
                 const isDone = idx < currentStepIdx;
                 const isCurrent = idx === currentStepIdx;
                 return (
-                  <div
-                    key={step.key}
-                    className={`flex items-center gap-3 transition-all duration-500 ${
-                      isCurrent ? "opacity-100" : isDone ? "opacity-70" : "opacity-30"
-                    }`}
-                  >
-                    {/* Status dot */}
-                    <div
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
-                        isDone
-                          ? "bg-green-500"
-                          : isCurrent
-                          ? "bg-primary shadow-sm shadow-primary/40"
-                          : "border-2 border-border bg-white"
-                      }`}
-                    >
-                      {isDone && (
-                        <span className="text-[9px] font-black text-white">✓</span>
-                      )}
-                      {isCurrent && (
-                        <div className="h-2 w-2 animate-pulse rounded-full bg-white" />
-                      )}
+                  <div key={step.key} className={`flex items-center gap-3 transition-all duration-500 ${isCurrent ? "opacity-100" : isDone ? "opacity-70" : "opacity-30"}`}>
+                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${isDone ? "bg-green-500" : isCurrent ? "bg-primary shadow-sm shadow-primary/40" : "border-2 border-border bg-white"}`}>
+                      {isDone && <span className="text-[9px] font-black text-white">✓</span>}
+                      {isCurrent && <div className="h-2 w-2 animate-pulse rounded-full bg-white" />}
                     </div>
-
-                    {/* Label */}
-                    <p className={`flex-1 text-xs font-medium ${isCurrent ? "text-foreground" : isDone ? "text-muted" : "text-muted/50"}`}>
-                      {step.label}
-                    </p>
-
-                    {/* Spinner for current */}
-                    {isCurrent && (
-                      <Loader2 size={12} className="shrink-0 animate-spin text-primary" />
-                    )}
+                    <p className={`flex-1 text-xs font-medium ${isCurrent ? "text-foreground" : isDone ? "text-muted" : "text-muted/50"}`}>{step.label}</p>
+                    {isCurrent && <Loader2 size={12} className="shrink-0 animate-spin text-primary" />}
                   </div>
                 );
               })}
@@ -1141,9 +1890,7 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
         <div className="animate-slide-down border-b border-green-200 bg-green-50">
           <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-3 py-2">
             <CheckCircle2 size={16} className="text-green-600" />
-            <p className="text-sm font-medium text-green-700">
-              Design généré avec succès !
-            </p>
+            <p className="text-sm font-medium text-green-700">Design généré avec succès !</p>
           </div>
         </div>
       )}
@@ -1156,12 +1903,32 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
               <AlertCircle size={15} className="text-red-500" />
               <p className="text-sm text-red-600">{aiError}</p>
             </div>
-            <button
-              onClick={() => setAiError(null)}
-              className="rounded-lg p-1 text-red-400 hover:bg-red-100 hover:text-red-600"
-            >
+            <button onClick={() => setAiError(null)} className="rounded-lg p-1 text-red-400 hover:bg-red-100 hover:text-red-600">
               <X size={16} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Variant warning banner (Story 20.7) ── */}
+      {variantWarning && variantHtml && (
+        <div className="animate-slide-down border-b border-amber-200 bg-amber-50">
+          <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Layers size={14} className="text-amber-600" />
+              <p className="text-sm font-medium text-amber-800">Variante non sauvegardée — sera perdue si vous quittez la page</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleKeepVariant}
+                className="rounded-lg bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700"
+              >
+                Garder la variante
+              </button>
+              <button onClick={handleDiscardVariant} className="rounded-lg px-2 py-1 text-xs text-amber-600 hover:bg-amber-100">
+                Annuler
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1170,21 +1937,13 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       <div className="flex border-b border-border bg-white lg:hidden">
         <button
           onClick={() => setMobileTab("content")}
-          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
-            mobileTab === "content"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted"
-          }`}
+          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${mobileTab === "content" ? "border-b-2 border-primary text-primary" : "text-muted"}`}
         >
           Contenu
         </button>
         <button
           onClick={() => setMobileTab("preview")}
-          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
-            mobileTab === "preview"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted"
-          }`}
+          className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${mobileTab === "preview" ? "border-b-2 border-primary text-primary" : "text-muted"}`}
         >
           Aperçu
         </button>
@@ -1193,15 +1952,11 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
       {/* ══════════════════ Split layout ══════════════════ */}
       <div className="flex h-[calc(100vh-3.5rem-41px)] lg:h-[calc(100vh-3.5rem)]">
 
-        {/* Left: Editor */}
-        <div className={`flex flex-col overflow-hidden border-r border-border lg:w-[48%] ${
-          mobileTab === "content" ? "w-full" : "hidden lg:flex"
-        }`}>
+        {/* ── Left: Editor ── */}
+        <div className={`flex flex-col overflow-hidden border-r border-border lg:w-[48%] ${mobileTab === "content" ? "w-full" : "hidden lg:flex"}`}>
           {/* Left toolbar */}
           <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4 py-2">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted">
-              Contenu
-            </span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-muted">Contenu</span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setShowImportUrlModal(true)}
@@ -1213,9 +1968,7 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
               </button>
               <button
                 onClick={() => setShowJsonImport(!showJsonImport)}
-                className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors ${
-                  showJsonImport ? "bg-surface text-foreground" : "text-muted hover:bg-surface hover:text-foreground"
-                }`}
+                className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors ${showJsonImport ? "bg-surface text-foreground" : "text-muted hover:bg-surface hover:text-foreground"}`}
               >
                 <FileUp size={12} />
                 <span>JSON</span>
@@ -1252,15 +2005,10 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                 .sort((a, b) => a.sortOrder - b.sortOrder)
                 .map((category, idx) => (
                   <div key={category.id} className="animate-slide-up" style={{ animationDelay: `${idx * 40}ms` }}>
-                    <CategoryEditor
-                      menuId={menuId}
-                      category={category}
-                      onUpdate={fetchMenu}
-                    />
+                    <CategoryEditor menuId={menuId} category={category} onUpdate={fetchMenu} />
                   </div>
                 ))}
 
-              {/* Add category */}
               {showAddCategory ? (
                 <div className="animate-scale-in mt-2 flex items-center gap-2">
                   <Input
@@ -1285,7 +2033,6 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                 </button>
               )}
 
-              {/* Empty state — PRO */}
               {menu.categories.length === 0 && isPro && !showAddCategory && (
                 <div className="mt-4 rounded-2xl border border-dashed border-primary/20 bg-gradient-to-br from-orange-50/50 to-white p-6 text-center">
                   <Sparkles size={28} className="mx-auto mb-3 text-primary/40" />
@@ -1295,12 +2042,7 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                   <p className="mt-1 text-xs text-muted">
                     Ou importez une photo / URL de votre menu existant
                   </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => { setShowAIPanel(true); setAiTab("import"); }}
-                  >
+                  <Button size="sm" variant="outline" className="mt-4" onClick={() => { setShowAIPanel(true); setAiTab("import"); }}>
                     <Upload size={13} />
                     Importer un menu existant
                   </Button>
@@ -1310,16 +2052,13 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
           </div>
         </div>
 
-        {/* Right: Preview */}
-        <div className={`flex flex-col bg-[#e8eaed] lg:w-[52%] ${
-          mobileTab === "preview" ? "w-full" : "hidden lg:flex"
-        }`}>
+        {/* ── Right: Preview ── */}
+        <div className={`flex flex-col bg-[#e8eaed] lg:w-[52%] ${mobileTab === "preview" ? "w-full" : "hidden lg:flex"}`}>
+
           {/* Preview toolbar */}
-          <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4 py-2">
+          <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-3 py-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted">
-                Aperçu
-              </span>
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted">Aperçu</span>
               {menu.isPublished && (
                 <a
                   href={`/m/${menu.slug}`}
@@ -1331,23 +2070,383 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                   Voir la page publique
                 </a>
               )}
+
+              {/* Variant tabs (Story 20.7) */}
+              {variantHtml && (
+                <div className="flex items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5">
+                  <button
+                    onClick={() => setActiveView("original")}
+                    className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${activeView === "original" ? "bg-white shadow-sm text-foreground" : "text-muted hover:text-foreground"}`}
+                  >
+                    Original
+                  </button>
+                  <button
+                    onClick={() => setActiveView("variant")}
+                    className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${activeView === "variant" ? "bg-white shadow-sm text-foreground" : "text-muted hover:text-foreground"}`}
+                  >
+                    Variante ✦
+                  </button>
+                </div>
+              )}
             </div>
-            <button
-              onClick={() => setPdfKey((k) => k + 1)}
-              className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-foreground"
-            >
-              <RefreshCw size={12} />
-              Rafraîchir
-            </button>
+
+            {/* Preview toolbar actions */}
+            <div className="flex items-center gap-1">
+              {isAiMenu && (
+                <>
+                  {/* Story 20.3 — Undo/Redo */}
+                  <button
+                    onClick={undo}
+                    disabled={!canUndo}
+                    title="Annuler (Ctrl+Z)"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-30"
+                  >
+                    <Undo2 size={13} />
+                  </button>
+                  <button
+                    onClick={redo}
+                    disabled={!canRedo}
+                    title="Rétablir (Ctrl+Shift+Z)"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-30"
+                  >
+                    <Redo2 size={13} />
+                  </button>
+                  {undoPosition && (
+                    <span className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                      {undoPosition}
+                    </span>
+                  )}
+
+                  <div className="h-4 w-px bg-border" />
+
+                  {/* Story 20.4 — Palette swap */}
+                  <div className="relative" ref={palettePopoverRef}>
+                    <button
+                      onClick={() => { setShowPalettePopover(!showPalettePopover); setShowFontPopover(false); }}
+                      title="Changer la couleur"
+                      className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors ${showPalettePopover ? "bg-surface text-foreground" : "text-muted hover:bg-surface hover:text-foreground"}`}
+                    >
+                      {detectedColor && (
+                        <span className="inline-block h-3 w-3 rounded-full border border-border/50 shadow-sm" style={{ backgroundColor: detectedColor }} />
+                      )}
+                      <Palette size={12} />
+                      <span className="hidden sm:inline">Couleurs</span>
+                    </button>
+
+                    {showPalettePopover && (
+                      <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-xl border border-border bg-white p-3 shadow-xl">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">Palette présets</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {PALETTE_PRESETS.map((p) => (
+                            <button
+                              key={p.color}
+                              onClick={() => handleSwapColor(p.color)}
+                              title={p.name}
+                              className="group relative flex flex-col items-center gap-1"
+                            >
+                              <span
+                                className="h-8 w-8 rounded-full border-2 border-transparent shadow-sm transition-all group-hover:scale-110 group-hover:border-white group-hover:shadow-md"
+                                style={{ backgroundColor: p.color }}
+                              />
+                              <span className="text-[9px] text-muted">{p.name.split(" ")[0]}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-3 border-t border-border pt-3">
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">Couleur libre</p>
+                          <input
+                            type="color"
+                            defaultValue={detectedColor ?? "#FF6B35"}
+                            onChange={(e) => {}}
+                            onBlur={(e) => handleSwapColor(e.target.value)}
+                            className="h-9 w-full cursor-pointer rounded-lg border border-border"
+                          />
+                        </div>
+                        {detectedColor && (
+                          <p className="mt-2 text-[10px] text-muted">
+                            Couleur actuelle : <span className="font-mono font-semibold">{detectedColor}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Story 20.5 — Font swap */}
+                  <div className="relative" ref={fontPopoverRef}>
+                    <button
+                      onClick={() => { setShowFontPopover(!showFontPopover); setShowPalettePopover(false); }}
+                      title="Changer la police"
+                      className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors ${showFontPopover ? "bg-surface text-foreground" : "text-muted hover:bg-surface hover:text-foreground"}`}
+                    >
+                      <Type size={12} />
+                      <span className="hidden sm:inline">Polices</span>
+                    </button>
+
+                    {showFontPopover && (
+                      <div className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border border-border bg-white p-3 shadow-xl">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">Paires de polices</p>
+                        <div className="space-y-1.5">
+                          {FONT_PRESETS.map((pair) => (
+                            <button
+                              key={pair.name}
+                              onClick={() => handleSwapFont(pair)}
+                              className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left transition-all hover:border-primary/40 hover:bg-primary/5"
+                            >
+                              <div>
+                                <p className="text-xs font-semibold text-foreground">{pair.name}</p>
+                                <p className="text-[10px] text-muted">{pair.display} · {pair.body}</p>
+                              </div>
+                              <span className="text-[10px] font-medium text-muted/60">{pair.preview}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Story 20.2 — Edit mode */}
+                  <button
+                    onClick={() => setEditMode(!editMode)}
+                    title={editMode ? "Désactiver l'édition inline" : "Activer l'édition inline (double-clic)"}
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors ${editMode ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface hover:text-foreground"}`}
+                  >
+                    <Edit3 size={12} />
+                    <span className="hidden sm:inline">{editMode ? "Édition ✓" : "Éditer"}</span>
+                  </button>
+
+                  {/* Story 20.6 — Snapshot history */}
+                  <button
+                    onClick={() => setShowSnapshotPanel(!showSnapshotPanel)}
+                    title="Versions sauvegardées"
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors ${showSnapshotPanel ? "bg-surface text-foreground" : "text-muted hover:bg-surface hover:text-foreground"}`}
+                  >
+                    <Clock size={12} />
+                    <span className="hidden lg:inline">Versions</span>
+                  </button>
+
+                  {/* Story 20.8 — Reorder sections */}
+                  <button
+                    onClick={() => {
+                      const next = !reorderMode;
+                      setReorderMode(next);
+                      if (next) detectSectionsInIframe();
+                    }}
+                    disabled={!iframeRef.current}
+                    title="Réordonner les sections"
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors ${reorderMode ? "bg-surface text-foreground" : "text-muted hover:bg-surface hover:text-foreground"} disabled:opacity-30`}
+                  >
+                    <GripVertical size={12} />
+                    <span className="hidden lg:inline">Réordonner</span>
+                  </button>
+
+                  {/* Story 20.7 — Generate variant */}
+                  <button
+                    onClick={handleGenerateVariant}
+                    disabled={isGeneratingVariant}
+                    title="Générer une variante alternative"
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-40"
+                  >
+                    {isGeneratingVariant ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Layers size={12} />
+                    )}
+                    <span className="hidden lg:inline">Variante</span>
+                  </button>
+
+                  <div className="h-4 w-px bg-border" />
+                </>
+              )}
+
+              {/* Refresh */}
+              <button
+                onClick={() => setPdfKey((k) => k + 1)}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-foreground"
+              >
+                <RefreshCw size={12} />
+                <span className="hidden sm:inline">Rafraîchir</span>
+              </button>
+            </div>
           </div>
 
+          {/* ── Story 20.6 — Snapshot panel ── */}
+          {showSnapshotPanel && isAiMenu && (
+            <div className="shrink-0 border-b border-border bg-white">
+              <div className="px-4 py-3">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted">Versions sauvegardées</p>
+                  <button onClick={() => setShowSnapshotPanel(false)} className="text-muted hover:text-foreground">
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Save current */}
+                <div className="mb-3 flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nom de la version (optionnel)"
+                    value={snapshotLabelInput}
+                    onChange={(e) => setSnapshotLabelInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateSnapshot()}
+                    className="flex-1 rounded-lg border border-border px-2.5 py-1.5 text-xs focus:border-primary focus:outline-none"
+                  />
+                  <Button size="sm" onClick={handleCreateSnapshot} disabled={isSavingSnapshot} className="rounded-lg text-xs">
+                    {isSavingSnapshot ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                    Sauvegarder
+                  </Button>
+                </div>
+
+                {/* Snapshots list */}
+                {isLoadingSnapshots ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 size={16} className="animate-spin text-muted" />
+                  </div>
+                ) : snapshots.length === 0 ? (
+                  <p className="py-3 text-center text-xs text-muted">Aucune version sauvegardée</p>
+                ) : (
+                  <div className="max-h-48 space-y-1.5 overflow-y-auto">
+                    {[...snapshots].reverse().map((snap) => (
+                      <div
+                        key={snap.id}
+                        className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2"
+                      >
+                        {renamingSnapId === snap.id ? (
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={() => handleRenameSnapshot(snap.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleRenameSnapshot(snap.id);
+                              if (e.key === "Escape") { setRenamingSnapId(null); setRenameValue(""); }
+                            }}
+                            className="flex-1 rounded bg-white px-1.5 py-0.5 text-xs border border-border focus:outline-none"
+                          />
+                        ) : (
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="truncate text-xs font-medium text-foreground cursor-pointer hover:text-primary"
+                              onDoubleClick={() => { setRenamingSnapId(snap.id); setRenameValue(snap.label); }}
+                              title="Double-clic pour renommer"
+                            >
+                              {snap.label}
+                            </p>
+                            <p className="text-[10px] text-muted">
+                              {new Date(snap.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleRestoreSnapshot(snap.id)}
+                          title="Restaurer cette version"
+                          className="shrink-0 rounded px-1.5 py-1 text-[10px] font-medium text-primary hover:bg-primary/10"
+                        >
+                          <RotateCcw size={11} />
+                        </button>
+                        {confirmDeleteSnapId === snap.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDeleteSnapshot(snap.id)}
+                              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50"
+                            >
+                              Oui
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteSnapId(null)}
+                              className="rounded px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface"
+                            >
+                              Non
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteSnapId(snap.id)}
+                            title="Supprimer"
+                            className="shrink-0 rounded p-1 text-muted hover:bg-red-50 hover:text-red-500"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Story 20.8 — Section reorder panel ── */}
+          {reorderMode && isAiMenu && (
+            <div className="shrink-0 border-b border-border bg-white px-4 py-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">Réordonner les sections</p>
+                <button onClick={() => setReorderMode(false)} className="text-muted hover:text-foreground">
+                  <X size={14} />
+                </button>
+              </div>
+              {detectedSections.length < 2 ? (
+                <p className="py-2 text-xs text-muted">Sections non détectées dans ce design. Essayez de rafraîchir.</p>
+              ) : (
+                <div className="space-y-1">
+                  {detectedSections.map((name, idx) => (
+                    <div key={idx} className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+                      <GripVertical size={13} className="shrink-0 text-muted/40" />
+                      <span className="flex-1 truncate text-xs font-medium text-foreground">{name}</span>
+                      <button
+                        onClick={() => moveSectionUp(idx)}
+                        disabled={idx === 0}
+                        className="rounded p-0.5 text-muted hover:bg-surface hover:text-foreground disabled:opacity-30"
+                      >
+                        <ChevronUp size={13} />
+                      </button>
+                      <button
+                        onClick={() => moveSectionDown(idx)}
+                        disabled={idx === detectedSections.length - 1}
+                        className="rounded p-0.5 text-muted hover:bg-surface hover:text-foreground disabled:opacity-30"
+                      >
+                        <ChevronDown size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Iterating overlay ── */}
+          {isIterating && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-white p-6 shadow-xl">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-orange-400">
+                  <Wand2 size={22} className="animate-pulse text-white" />
+                </div>
+                <p className="text-sm font-semibold text-foreground">Modification en cours…</p>
+                <p className="text-xs text-muted">L&apos;IA applique votre instruction</p>
+              </div>
+            </div>
+          )}
+
+          {/* Preview */}
           {hasDishes ? (
-            <iframe
-              key={pdfKey}
-              src={`/api/menus/${menuId}/preview`}
-              className="flex-1 w-full"
-              title="Aperçu du menu"
-            />
+            <div className="relative flex-1">
+              {/* Original preview */}
+              <iframe
+                key={pdfKey}
+                ref={iframeRef}
+                src={previewSrc}
+                className={`h-full w-full ${variantHtml && activeView === "variant" ? "hidden" : ""}`}
+                title="Aperçu du menu"
+                onLoad={handleIframeLoad}
+              />
+              {/* Variant preview (srcDoc) */}
+              {variantHtml && activeView === "variant" && (
+                <iframe
+                  srcDoc={variantHtml}
+                  className="h-full w-full"
+                  title="Variante du menu"
+                />
+              )}
+            </div>
           ) : (
             <div className="flex flex-1 items-center justify-center">
               <div className="text-center">
@@ -1370,15 +2469,11 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
           disabled={isGeneratingAI}
           className="fixed bottom-6 right-6 z-30 flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-primary to-orange-500 px-5 py-3.5 text-sm font-bold text-white shadow-xl shadow-primary/30 transition-all hover:scale-105 hover:shadow-2xl hover:shadow-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isGeneratingAI ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Sparkles size={18} />
-          )}
+          {isGeneratingAI ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
           <span>
             {isGeneratingAI
               ? "Génération..."
-              : menu.templateId === "ai-custom"
+              : isAiMenu
               ? "Régénérer avec IA"
               : "Générer avec IA"}
           </span>
@@ -1446,11 +2541,7 @@ export function MenuEditor({ menuId, userPlan = "FREE" }: MenuEditorProps) {
                   >
                     Annuler
                   </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 rounded-lg"
-                    isLoading={isSharingEmail}
-                  >
+                  <Button type="submit" className="flex-1 rounded-lg" isLoading={isSharingEmail}>
                     <Send size={14} />
                     Envoyer
                   </Button>

@@ -133,9 +133,10 @@ model Menu {
   aiDesignHtml   String?  @db.Text // Template HTML/CSS généré par l'IA
   aiBackgroundUrl String?          // URL de l'image décorative DALL-E
   designPrompt   String?          // Prompt utilisé pour la génération
-  pdfUrl       String? // URL du dernier PDF généré
-  qrCodeUrl    String? // URL du QR code généré
-  createdAt    DateTime @default(now())
+  pdfUrl            String? // URL du dernier PDF généré
+  qrCodeUrl         String? // URL du QR code généré
+  designSnapshots   Json    @default("[]") // [{ id, label, html, createdAt }] — max 10
+  createdAt         DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
